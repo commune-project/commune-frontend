@@ -33,6 +33,10 @@ COMMUNE_REAL_USER_PASSWORD='...' \
 
 Do not commit real credentials. The local test proxy is documented by `tests-server/https-proxy.mjs` and exists only for acceptance.
 
+## Feature refactor verification, 2026-10-22
+
+The feature-module refactor passed format/translation checks, compilation, production build, 11 JavaScript tests, 20 Elm tests and 39 simulated browser tests. The browser suite adds stale route/session response and private profile cleanup regressions to the previous 36 tests. The real-backend test was attempted separately but skipped because account credentials were absent; no HTTPS service was available on localhost:8443. The earlier real-backend result above is historical evidence and was not reproduced during this refactor. See `openspec/changes/refactor-elm-feature-modules/validation.md` for commands, lifecycle review and module inventory.
+
 ## Manual checks
 
 The following checks require interactive environments unavailable to this automated run and remain explicitly unverified:

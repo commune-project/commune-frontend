@@ -270,6 +270,73 @@ test('logs in, registers, verifies and logs out', async ({ page }) => {
   await expect(page.getByRole('status').filter({ hasText: 'Email verified. You can now log in.' }).first()).toBeVisible();
 });
 
+test('ignores an old route failure after navigating away', async ({ page }) => {
+  const state = fixtures();
+  await mockApi(page, state, { authenticated: true });
+  await open(page, '/');
+  await expect(page.getByText(/Signed in as alice/)).toBeVisible();
+  let pending;
+  await page.route('**/api/v1/posts/p1', route => { pending = route; });
+  await page.getByRole('link', { name: 'Hello world' }).click();
+  await expect.poll(() => Boolean(pending)).toBe(true);
+  await page.getByRole('link', { name: 'Communities', exact: true }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Communities' })).toBeVisible();
+  const response = page.waitForResponse('**/api/v1/posts/p1');
+  await json(pending, 401, { error: 'expired old request' });
+  await (await response).finished();
+  await page.waitForTimeout(100);
+  await expect(page.getByText(/Signed in as alice/)).toBeVisible();
+  await expect(page.getByText('Your session has expired. Please log in again.')).toHaveCount(0);
+});
+
+test('ignores startup session data after login and logout', async ({ page }) => {
+  const state = fixtures();
+  await mockApi(page, state);
+  let pending;
+  await page.route('**/api/v1/auth/session', route => { pending = route; });
+  await open(page, '/login');
+  await expect.poll(() => Boolean(pending)).toBe(true);
+  await page.getByLabel('Username or email').fill('alice');
+  await page.getByLabel('Password').fill('long-enough-password');
+  await page.getByRole('button', { name: 'Log in' }).click();
+  await expect(page.getByText(/Signed in as alice/)).toBeVisible();
+  await page.getByRole('button', { name: 'Log out' }).click();
+  await expect(page.getByLabel('Username or email')).toBeVisible();
+  const response = page.waitForResponse('**/api/v1/auth/session');
+  await json(pending, 200, identity);
+  await (await response).finished();
+  await page.waitForTimeout(100);
+  await expect(page.getByLabel('Username or email')).toBeVisible();
+  await expect(page.getByText(/Signed in as alice/)).toHaveCount(0);
+});
+
+test('clears private profile drafts on session expiry', async ({ page }) => {
+  const state = fixtures();
+  await mockApi(page, state, { authenticated: true });
+  await open(page, '/settings/profile');
+  await page.getByLabel('Display name').fill('Private unsaved name');
+  await page.route('**/api/v1/profile', route => json(route, 401, { error: 'session expired' }));
+  await page.getByRole('button', { name: 'Save profile' }).click();
+  await expect(page.getByText('Your session has expired. Please log in again.').first()).toBeVisible();
+  // Existing mutation errors retain the draft; a protected read expires the session.
+  await expect(page.getByLabel('Display name')).toHaveValue('Private unsaved name');
+  await page.route('**/api/v1/topics?*', route => json(route, 401, { error: 'session expired' }));
+  await page.getByRole('link', { name: 'Latest discussions', exact: true }).click();
+  await expect(page.getByText(/Signed in as alice/)).toHaveCount(0);
+  await expect(page.getByLabel('Display name')).toHaveCount(0);
+  await page.unroute('**/api/v1/topics?*');
+  await page.unroute('**/api/v1/profile');
+  // Keep the next profile read from replacing the cleared form with server values.
+  await page.route('**/api/v1/profile', route => json(route, 503, { error: 'temporarily unavailable' }));
+  await page.getByRole('link', { name: 'Log in', exact: true }).first().click();
+  await page.getByLabel('Username or email').fill('alice');
+  await page.getByLabel('Password').fill('long-enough-password');
+  await page.getByRole('button', { name: 'Log in' }).click();
+  await expect(page.getByText(/Signed in as alice/)).toBeVisible();
+  await page.getByRole('link', { name: 'Profile settings', exact: true }).click();
+  await expect(page.getByLabel('Display name')).toHaveValue('');
+});
+
 test('invalid login keeps the identifier and associates a localized error', async ({ page }) => {
   const state = fixtures();
   state.loginStatus = 401;
