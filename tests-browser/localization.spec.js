@@ -142,7 +142,7 @@ test('remains usable with reduced motion and forced colors', async ({ page }) =>
 });
 
 test('remains usable without page-level overflow at wide, medium, and compact widths', async ({ page }) => {
-  for (const width of [1280, 768, 320]) {
+  for (const width of [1280, 768]) {
     await page.setViewportSize({ width, height: 800 });
     await start(page, 'en-US');
     await expect(page.getByRole('navigation', { name: 'Main navigation' })).toBeVisible();
@@ -150,4 +150,15 @@ test('remains usable without page-level overflow at wide, medium, and compact wi
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
     expect(overflow, `${width}px should not scroll horizontally`).toBe(false);
   }
+
+  await page.setViewportSize({ width: 320, height: 800 });
+  await start(page, 'en-US');
+  await expect(page.getByRole('navigation', { name: 'Main navigation' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Open navigation' }).click();
+  const drawer = page.getByRole('dialog', { name: 'Main navigation' });
+  await expect(drawer).toBeVisible();
+  await expect(drawer.getByRole('navigation', { name: 'Main navigation' })).toBeVisible();
+  await expect(page.locator('#language-select')).toBeVisible();
+  const compactOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+  expect(compactOverflow, '320px should not scroll horizontally').toBe(false);
 });

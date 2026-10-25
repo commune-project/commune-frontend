@@ -52,3 +52,26 @@ The automated composition guard, mixed Arabic/Indic/Thai/CJK fixture, joined emo
 ## Design safeguards
 
 The shell provides a skip link, semantic landmarks, one page `h1`, persistent labels, visible focus, 48 CSS-pixel control targets, localized live status, a semantic progress bar, native selects and textareas, and logical-direction CSS. Dynamic language switching keeps focus on the language selector. Initial loading and fallback announce status without requiring a page reload.
+
+## Blue-purple application bar, 2026-10-25
+
+The application bar is now an opaque blue-purple gradient with a white foreground. All colors remain custom properties in `src/style.css`; no component-level color values were added.
+
+| Token | Value | Checked against | Ratio |
+|---|---|---|---|
+| `--md-top-bar-start` | `#4643a3` | `--md-on-top-bar` | 8.11:1 |
+| `--md-top-bar-mid` | `#5a55c0` | `--md-on-top-bar` | 6.01:1 |
+| `--md-top-bar-end` | `#6a63cf` | `--md-on-top-bar` | 4.89:1 |
+| `--md-focus-on-dark` | `#ffffff` | each bar stop | ≥4.89:1 |
+| `--md-accent` | `#c2185b` | `--md-surface` | 5.54:1 |
+| `--md-error` | `#ba1a1a` | `--md-surface` | 5.92:1 |
+
+Evidence collected on 2026-10-25 with Chromium supplied by `/usr/bin/chromium`:
+
+- `node --test tests-js/*.test.js` passed 15 tests, including four new `tests-js/palette.test.js` assertions that parse the stylesheet and recompute each ratio. A deliberately lightened trailing stop (`#8a84e0`) failed at 3.25:1 before the value was restored.
+- `ELM_HOME=/tmp/commune-elm-home npm run build` succeeded and the emitted CSS contains the new tokens; `dist/index.html` carries `theme-color="#5a55c0"`.
+- `npm run test:browser` passed 39 tests with 1 real-backend test skipped. The axe WCAG 2.0/2.1/2.2 A/AA scans over fourteen routes reported zero violations, and the existing enlarged-text, forced-colors, reduced-motion, and width checks still pass.
+- Playwright screenshots confirmed the opaque gradient, white bar text, a white focus ring on the bar, a light skip link over the bar, and the language select border in LTR at 1280 and 320 CSS pixels. Under forced colors the gradient is replaced by the system canvas, the bar keeps a `CanvasText` boundary, and the current-page underline remains visible.
+- 200% text at 1280 pixels and 100% text at 320 pixels keep focus clear of the sticky bar.
+
+Compact navigation correction: the compact rule `.desktop-nav { display: none }` was dead because `.top-bar nav { display: flex }` is more specific, so 320-pixel pages rendered both the drawer trigger and the full navigation. The selector now reads `.top-bar nav.desktop-nav`, and the width test asserts that compact pages expose navigation through the dialog rather than the bar. Re-measured with Chromium after the correction: bar height is 130 CSS pixels at 320×800, 321 at 320 pixels with 200% text, 74 at 1280×800, and 326 at 1280 pixels with 200% text. The focused page heading (top 146 / 353 / 106 / 390) clears the bar in every combination (bottom 130 / 321 / 74 / 326), and no page-level horizontal overflow appears.

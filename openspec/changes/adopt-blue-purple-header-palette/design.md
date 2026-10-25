@@ -21,7 +21,7 @@ See [`proposal.md`](proposal.md) for motivation. Current constraints that shape 
 **Non-Goals:**
 
 - Board artwork, board logos, thumbnails, or any administrator upload pipeline. Deferred to a future change.
-- Background stripe decoration, dark mode, `prefers-color-scheme` variants, typography changes, and any layout or Elm behavior change.
+- Background stripe decoration, dark mode, `prefers-color-scheme` variants, typography changes, and layout changes beyond restoring the compact drawer-only navigation described in D9.
 - Introducing a CSS build-time color tool or design-token generator; plain custom properties remain sufficient.
 
 ## Decisions
@@ -73,6 +73,14 @@ The language select keeps a light fill and dark text (contrast of the fill again
 ### D8. Forced colors stays system-driven
 
 Under `forced-colors: active` the browser replaces the gradient and foreground. The only addition is an explicit top-bar boundary fallback (`CanvasText`) so the bar remains a perceivable region, consistent with the existing forced-colors rules for focus and the loading indicator.
+
+### D9. Compact navigation duplicate is corrected because it breaks focus visibility
+
+Verification of the bar surfaced a pre-existing defect: the compact media query's `.desktop-nav { display: none }` never applied because `.top-bar nav { display: flex }` is more specific. At 320 CSS pixels both the drawer trigger and the full navigation rendered, producing a 502-pixel sticky bar that covered the focused page heading once text was resized to 200%. The selector is now `.top-bar nav.desktop-nav`, and the width test asserts that compact pages expose navigation through the dialog instead of the bar.
+
+Alternative considered: raise `scroll-padding-block-start` to compensate. Rejected because the bar height depends on wrapped content and text size; no static value stays correct across widths and 200% text. Restoring the intended drawer-only navigation both fixes the obscuring and matches the existing requirement that compact layouts use accessible drawer navigation.
+
+Post-fix measurements: bar height 130 (320×800), 321 (320, 200% text), 74 (1280×800) and 326 (1280, 200% text) CSS pixels; the focused heading clears the bar in all four combinations.
 
 ## Risks / Trade-offs
 
