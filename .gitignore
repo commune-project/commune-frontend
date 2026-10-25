@@ -5,3 +5,5 @@ public/elm.js
 test-results/
 playwright-report/
 .env.local
+
+.agents/
