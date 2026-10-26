@@ -1,4 +1,4 @@
-module Domain exposing (Attachment, Community, Identity, MediaUpload, Notice, NotificationPage, Page, Post, Profile, Roster, Source, community, identity, media, notice, notificationPage, page, post, profile, roster, source)
+module Domain exposing (Attachment, Author, Community, Identity, MediaUpload, Notice, NotificationPage, Page, Post, Profile, Roster, Source, community, identity, media, notice, notificationPage, page, post, profile, roster, source)
 
 import Dict
 import Json.Decode as D exposing (Decoder)
@@ -35,13 +35,18 @@ type alias Attachment =
     { url : String, name : String, mediaType : String, preview : String }
 
 
+type alias Author =
+    { acct : String, displayName : String }
+
+
 type alias Post =
     { id : String
     , community : String
     , title : String
     , body : String
     , html : String
-    , author : String
+    , authorActor : String
+    , author : Author
     , parent : String
     , date : String
     , version : String
@@ -162,6 +167,7 @@ post =
         |> and (D.field "body" D.string)
         |> and (D.field "body_html" D.string)
         |> and (D.field "author_actor_uri" D.string)
+        |> and (optional "author" authorDecoder (Author "" ""))
         |> and (optional "parent_id" D.string "")
         |> and (D.field "authored_at" D.string)
         |> and (D.field "version" revision)
@@ -194,6 +200,13 @@ validateRevision value =
 
     else
         D.fail "Expected a positive signed 64-bit revision"
+
+
+authorDecoder : Decoder Author
+authorDecoder =
+    D.map2 Author
+        (optional "acct" D.string "")
+        (optional "display_name" D.string "")
 
 
 attachment : Decoder Attachment
@@ -254,3 +267,4 @@ media =
 size : Decoder String
 size =
     D.oneOf [ D.string, D.int |> D.map String.fromInt ]
+

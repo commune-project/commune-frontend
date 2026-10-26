@@ -24,6 +24,20 @@ type alias Config msg =
 
 postCard : Config msg -> Translations.I18n -> Domain.Post -> Html msg
 postCard config texts post =
+    let
+        authorText =
+            if not (String.isEmpty post.author.displayName) && not (String.isEmpty post.author.acct) then
+                post.author.displayName ++ " (@" ++ post.author.acct ++ ")"
+
+            else if not (String.isEmpty post.author.displayName) then
+                post.author.displayName
+
+            else if not (String.isEmpty post.author.acct) then
+                "@" ++ post.author.acct
+
+            else
+                post.authorActor
+    in
     article [ A.class "card post-card", A.attribute "aria-labelledby" ("post-" ++ post.id) ]
         [ h2 [ A.id ("post-" ++ post.id), A.dir "auto" ]
             [ a [ A.href (Route.path (Route.Post post.id)) ]
@@ -37,7 +51,7 @@ postCard config texts post =
                 ]
             ]
         , p [ A.class "metadata" ]
-            [ bdi [] [ text (Translations.authorLabel post.author texts) ]
+            [ bdi [] [ text (Translations.authorLabel authorText texts) ]
             , text " · "
             , time [ A.datetime post.date, A.attribute "data-commune-time" "" ] [ text (formattedDate config.formatted post.date) ]
             ]

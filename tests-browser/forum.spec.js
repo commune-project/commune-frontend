@@ -17,6 +17,7 @@ function fixtures() {
   const topic = {
     id: 'p1', community_id: 'c1', object_type: 'Page', title: 'Hello world', body: 'Hello',
     body_html: '<p>Hello <strong>world</strong></p><p dir="auto">مرحبا — नमस्ते — สวัสดี — 你好 — é — 👩‍💻</p>', author_actor_uri: identity.actor_uri,
+    author: { acct: 'alice@forum.test', display_name: 'Alice' },
     authored_at: '2026-10-20T08:30:00Z', version: 4, content_format: 'markdown',
     like_count: 2, liked_by_me: false, reply_count: 1, deleted: false,
     permissions: { can_edit: true, can_delete: true, can_like: true, can_reply: true, can_hide: true, can_moderate: true },
@@ -215,6 +216,7 @@ test('browse latest, community, discussion, search and profile', async ({ page }
   await open(page, '/');
   await expect(page.getByRole('heading', { name: 'Latest discussions' }).first()).toBeVisible();
   await expect(page.getByRole('link', { name: 'Hello world' })).toBeVisible();
+  await expect(page.getByText('Alice (@alice@forum.test)').first()).toBeVisible();
   await expect(page.getByText(/مرحبا/)).toBeVisible();
 
   await page.getByRole('link', { name: 'Communities' }).click();
