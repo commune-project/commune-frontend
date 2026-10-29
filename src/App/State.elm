@@ -25,6 +25,7 @@ import Http
 import Json.Decode as Decode
 import Locale exposing (Locale(..))
 import Localization
+import Remote exposing (Remote)
 import Route
 import Ui.Formatting exposing (Formatting)
 import Url exposing (Url)
@@ -43,6 +44,8 @@ type alias Model =
     , bootFailed : Bool
     , loading : Localization.State
     , drawerOpen : Bool
+    , wideLayout : Bool
+    , drawerProfile : Remote Domain.Profile
     , dialog : Maybe String
     , flash : Flash
     , formatted : Maybe Formatting
@@ -69,6 +72,7 @@ type Msg
     | CatalogResult Localization.Pending (Result Http.Error (Translations.I18n -> Translations.I18n))
     | Incoming Decode.Value
     | SessionLoaded Int (Result Api.Problem Domain.Identity)
+    | DrawerProfileLoaded (Result Api.Problem Domain.Profile)
     | OpenDrawer
     | CloseDrawer
     | DrawerClosed

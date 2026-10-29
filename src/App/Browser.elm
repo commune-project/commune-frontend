@@ -1,5 +1,6 @@
 module App.Browser exposing (receiveIncoming)
 
+import App.Layout exposing (applyLayout)
 import App.State exposing (Model, Msg(..))
 import Json.Decode as Decode
 import Locale exposing (Locale(..))
@@ -23,6 +24,16 @@ receiveIncoming raw model =
 
                 Nothing ->
                     ( model, Cmd.none )
+
+        Ok (IncomingLayout wide) ->
+            let
+                next =
+                    applyLayout wide
+                        { wideLayout = model.wideLayout
+                        , drawerOpen = model.drawerOpen
+                        }
+            in
+            ( { model | wideLayout = next.wideLayout, drawerOpen = next.drawerOpen }, Cmd.none )
 
         Ok IncomingIgnored ->
             ( model, Cmd.none )

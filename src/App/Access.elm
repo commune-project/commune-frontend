@@ -7,6 +7,7 @@ import App.State exposing (Model)
 import Feature.CommunityManage.State as ManageState
 import Feature.Notifications as Notifications
 import Feature.Profile as Profile
+import Remote exposing (Remote(..))
 import Set exposing (Set)
 
 
@@ -24,6 +25,7 @@ clearPrivate : Model -> Model
 clearPrivate model =
     { model
         | profile = Profile.clearPrivate model.profile
+        , drawerProfile = NotAsked
         , notificationsPage = Notifications.initial
         , management = ManageState.initial
         , posts = (\postsState -> { postsState | busy = Set.empty }) model.posts

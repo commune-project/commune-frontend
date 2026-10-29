@@ -145,7 +145,16 @@ test('remains usable without page-level overflow at wide, medium, and compact wi
   for (const width of [1280, 768]) {
     await page.setViewportSize({ width, height: 800 });
     await start(page, 'en-US');
-    await expect(page.getByRole('navigation', { name: 'Main navigation' })).toBeVisible();
+    if (width < 1200) {
+      await page.getByRole('button', { name: 'Open navigation' }).click();
+      await expect(page.getByRole('dialog', { name: 'Main navigation' })).toBeVisible();
+      await expect(page.getByRole('navigation', { name: 'Main navigation' })).toBeVisible();
+      await page.selectOption('#language-select', 'zh-cmn-Hans-CN');
+      await expect(page.locator('html')).toHaveAttribute('lang', 'zh-cmn-Hans-CN');
+      await expect(page.locator('#language-select')).toBeFocused();
+    } else {
+      await expect(page.getByRole('navigation', { name: 'Main navigation' })).toBeVisible();
+    }
     await expect(page.locator('#language-select')).toBeVisible();
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
     expect(overflow, `${width}px should not scroll horizontally`).toBe(false);
@@ -161,4 +170,36 @@ test('remains usable without page-level overflow at wide, medium, and compact wi
   await expect(page.locator('#language-select')).toBeVisible();
   const compactOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
   expect(compactOverflow, '320px should not scroll horizontally').toBe(false);
+});
+
+test('the wide drawer collapses, expands, and defaults to open after reload', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await start(page, 'en-US');
+  const navigation = page.getByRole('navigation', { name: 'Main navigation' });
+  await expect(navigation).toBeVisible();
+
+  await page.getByRole('button', { name: 'Close navigation' }).click();
+  await expect(navigation).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Open navigation' })).toBeVisible();
+  await expect(page).toHaveURL(/\/$/);
+
+  await page.getByRole('button', { name: 'Open navigation' }).click();
+  await expect(navigation).toBeVisible();
+
+  await page.getByRole('button', { name: 'Close navigation' }).click();
+  await page.reload();
+  await expect(page.getByRole('navigation', { name: 'Main navigation' })).toBeVisible();
+});
+
+test('crossing the breakpoint resolves the open modal into the permanent drawer', async ({ page }) => {
+  await page.setViewportSize({ width: 768, height: 800 });
+  await start(page, 'en-US');
+  await page.getByRole('button', { name: 'Open navigation' }).click();
+  await expect(page.getByRole('dialog', { name: 'Main navigation' })).toBeVisible();
+
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await expect(page.getByRole('dialog', { name: 'Main navigation' })).toHaveCount(0);
+  await expect(page.getByRole('navigation', { name: 'Main navigation' })).toBeVisible();
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+  expect(overflow, 'the permanent drawer must not introduce horizontal scrolling').toBe(false);
 });

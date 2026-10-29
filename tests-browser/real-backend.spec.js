@@ -19,7 +19,7 @@ test.describe('real backend', () => {
     await page.getByLabel('Username or email').fill('alice');
     await page.getByLabel('Password').fill(adminPassword);
     await page.getByRole('button', { name: 'Log in', exact: true }).click();
-    await expect(page.getByText(/Signed in as alice/)).toBeVisible();
+    await expect(page.locator('#navigation-drawer')).toContainText('@alice');
     await page.waitForTimeout(100);
 
     await page.goto(base + '/communities/new');

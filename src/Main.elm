@@ -1,5 +1,7 @@
 module Main exposing (main)
 
+import Api
+import App.Access exposing (authProblem)
 import App.Browser exposing (receiveIncoming)
 import App.Features exposing (updateAuth, updateCommunity, updateCommunityCreate, updateEditor, updateFeed, updateManage, updateNotifications, updatePost, updateProfile, updateSearch)
 import App.Feedback exposing (Flash(..))
@@ -11,11 +13,13 @@ import App.State exposing (Model, Msg(..))
 import App.View exposing (view)
 import Browser
 import Browser.Navigation as Navigation
+import Domain
 import Feature.Auth.Update as Auth
 import Feature.Post as Post
 import Json.Decode as Decode
 import Locale exposing (Locale(..))
 import Ports exposing (closeDialog, focus, incoming, openDialog)
+import Remote exposing (Remote(..))
 import Route
 import Ui.PostCard exposing (deleteTriggerId)
 import Url exposing (Url)
@@ -47,7 +51,18 @@ update message model =
         UrlChanged url ->
             let
                 changed =
-                    { model | url = url, route = Route.parse url, routeEpoch = model.routeEpoch + 1, drawerOpen = False, dialog = Nothing }
+                    { model
+                        | url = url
+                        , route = Route.parse url
+                        , routeEpoch = model.routeEpoch + 1
+                        , drawerOpen =
+                            if model.wideLayout then
+                                model.drawerOpen
+
+                            else
+                                False
+                        , dialog = Nothing
+                    }
 
                 ( loaded, command ) =
                     loadRoute changed
@@ -90,11 +105,12 @@ update message model =
                     changed =
                         case result of
                             Ok identity ->
-                                { model | auth = Authenticated identity }
+                                { model | auth = Authenticated identity, drawerProfile = Loading }
 
                             Err problem ->
                                 { model
                                     | auth = Anonymous
+                                    , drawerProfile = NotAsked
                                     , flash =
                                         if problem.status == 401 then
                                             model.flash
@@ -106,13 +122,38 @@ update message model =
                     ( loaded, command ) =
                         loadRoute changed
                 in
-                ( loaded, Cmd.batch [ command, unreadCommand loaded ] )
+                ( loaded, Cmd.batch [ command, unreadCommand loaded, loadDrawerProfile changed ] )
+
+        DrawerProfileLoaded result ->
+            case model.auth of
+                Authenticated _ ->
+                    case result of
+                        Ok profile ->
+                            ( { model | drawerProfile = Ready profile }, Cmd.none )
+
+                        Err problem ->
+                            if problem.status == 401 then
+                                ( authProblem model problem, Cmd.none )
+
+                            else
+                                ( { model | drawerProfile = Failed problem }, Cmd.none )
+
+                _ ->
+                    ( model, Cmd.none )
 
         OpenDrawer ->
-            ( { model | drawerOpen = True }, openDialog "navigation-drawer" )
+            if model.wideLayout then
+                ( { model | drawerOpen = True }, Cmd.none )
+
+            else
+                ( { model | drawerOpen = True }, openDialog "navigation-drawer" )
 
         CloseDrawer ->
-            ( { model | drawerOpen = False }, Cmd.batch [ closeDialog "navigation-drawer", focus "menu-button" ] )
+            if model.wideLayout then
+                ( { model | drawerOpen = False }, focus "menu-button" )
+
+            else
+                ( { model | drawerOpen = False }, Cmd.batch [ closeDialog "navigation-drawer", focus "menu-button" ] )
 
         DrawerClosed ->
             ( { model | drawerOpen = False }, Cmd.none )
@@ -239,3 +280,13 @@ update message model =
 subscriptions : Model -> Sub Msg
 subscriptions _ =
     incoming Incoming
+
+
+loadDrawerProfile : Model -> Cmd Msg
+loadDrawerProfile model =
+    case model.auth of
+        Authenticated _ ->
+            Api.get "/api/v1/profile" (DrawerProfileLoaded << Api.decodeResponse Domain.profile)
+
+        _ ->
+            Cmd.none

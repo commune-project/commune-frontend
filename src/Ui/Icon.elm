@@ -12,6 +12,17 @@ type Icon
     | Edit
     | Delete
     | Reply
+    | Home
+    | Communities
+    | Search
+    | Notifications
+    | Person
+    | Settings
+    | Logout
+    | Login
+    | Language
+    | Menu
+    | Close
 
 
 view : Icon -> Html msg
@@ -45,3 +56,36 @@ data icon =
 
         Reply ->
             Icons.chatBubbleOutline
+
+        Home ->
+            Icons.home
+
+        Communities ->
+            Icons.groups
+
+        Search ->
+            Icons.search
+
+        Notifications ->
+            Icons.notifications
+
+        Person ->
+            Icons.person
+
+        Settings ->
+            Icons.settings
+
+        Logout ->
+            Icons.logout
+
+        Login ->
+            Icons.login
+
+        Language ->
+            Icons.language
+
+        Menu ->
+            Icons.menu
+
+        Close ->
+            Icons.close

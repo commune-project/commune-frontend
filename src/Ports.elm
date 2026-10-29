@@ -15,6 +15,7 @@ port incoming : (Decode.Value -> msg) -> Sub msg
 type IncomingData
     = IncomingCsrf String
     | IncomingFormatting Formatting
+    | IncomingLayout Bool
     | IncomingIgnored
 
 
@@ -29,6 +30,9 @@ incomingDecoder =
 
                     "formatted" ->
                         Decode.map IncomingFormatting formattingDecoder
+
+                    "layout" ->
+                        Decode.map IncomingLayout (Decode.field "wide" Decode.bool)
 
                     _ ->
                         Decode.succeed IncomingIgnored

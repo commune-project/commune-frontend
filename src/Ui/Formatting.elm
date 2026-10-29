@@ -1,6 +1,5 @@
 module Ui.Formatting exposing (..)
 
-import Domain
 import Generated.I18n as Translations
 import List
 
@@ -100,20 +99,3 @@ modeLabel texts mode =
 
     else
         Translations.federated texts
-
-
-signedInLabel : Translations.I18n -> Domain.Identity -> String
-signedInLabel texts identity =
-    Translations.signedInAs identity.username texts
-        ++ (if identity.siteAdmin then
-                " · " ++ Translations.siteAdministrator texts
-
-            else
-                ""
-           )
-        ++ (if identity.deploymentAdmin then
-                " · " ++ Translations.deploymentAdministrator texts
-
-            else
-                ""
-           )

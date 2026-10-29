@@ -256,7 +256,7 @@ test('logs in, registers, verifies and logs out', async ({ page }) => {
   await page.getByLabel('Password').fill('long-enough-password');
   await page.getByRole('button', { name: 'Log in' }).click();
   await expect(page).toHaveURL(/\/$|\/$/);
-  await expect(page.getByText(/Signed in as alice/)).toBeVisible();
+  await expect(page.locator('#navigation-drawer')).toContainText('@alice');
 
   await page.goto('/register');
   await page.getByLabel('Username').fill('alice');
@@ -276,7 +276,7 @@ test('ignores an old route failure after navigating away', async ({ page }) => {
   const state = fixtures();
   await mockApi(page, state, { authenticated: true });
   await open(page, '/');
-  await expect(page.getByText(/Signed in as alice/)).toBeVisible();
+  await expect(page.locator('#navigation-drawer')).toContainText('@alice');
   let pending;
   await page.route('**/api/v1/posts/p1', route => { pending = route; });
   await page.getByRole('link', { name: 'Hello world' }).click();
@@ -287,7 +287,7 @@ test('ignores an old route failure after navigating away', async ({ page }) => {
   await json(pending, 401, { error: 'expired old request' });
   await (await response).finished();
   await page.waitForTimeout(100);
-  await expect(page.getByText(/Signed in as alice/)).toBeVisible();
+  await expect(page.locator('#navigation-drawer')).toContainText('@alice');
   await expect(page.getByText('Your session has expired. Please log in again.')).toHaveCount(0);
 });
 
@@ -301,7 +301,7 @@ test('ignores startup session data after login and logout', async ({ page }) => 
   await page.getByLabel('Username or email').fill('alice');
   await page.getByLabel('Password').fill('long-enough-password');
   await page.getByRole('button', { name: 'Log in' }).click();
-  await expect(page.getByText(/Signed in as alice/)).toBeVisible();
+  await expect(page.locator('#navigation-drawer')).toContainText('@alice');
   await page.getByRole('button', { name: 'Log out' }).click();
   await expect(page.getByLabel('Username or email')).toBeVisible();
   const response = page.waitForResponse('**/api/v1/auth/session');
@@ -309,7 +309,7 @@ test('ignores startup session data after login and logout', async ({ page }) => 
   await (await response).finished();
   await page.waitForTimeout(100);
   await expect(page.getByLabel('Username or email')).toBeVisible();
-  await expect(page.getByText(/Signed in as alice/)).toHaveCount(0);
+  await expect(page.locator('#navigation-drawer')).not.toContainText('@alice');
 });
 
 test('clears private profile drafts on session expiry', async ({ page }) => {
@@ -324,7 +324,7 @@ test('clears private profile drafts on session expiry', async ({ page }) => {
   await expect(page.getByLabel('Display name')).toHaveValue('Private unsaved name');
   await page.route('**/api/v1/topics?*', route => json(route, 401, { error: 'session expired' }));
   await page.getByRole('link', { name: 'Latest discussions', exact: true }).click();
-  await expect(page.getByText(/Signed in as alice/)).toHaveCount(0);
+  await expect(page.locator('#navigation-drawer')).not.toContainText('@alice');
   await expect(page.getByLabel('Display name')).toHaveCount(0);
   await page.unroute('**/api/v1/topics?*');
   await page.unroute('**/api/v1/profile');
@@ -334,7 +334,7 @@ test('clears private profile drafts on session expiry', async ({ page }) => {
   await page.getByLabel('Username or email').fill('alice');
   await page.getByLabel('Password').fill('long-enough-password');
   await page.getByRole('button', { name: 'Log in' }).click();
-  await expect(page.getByText(/Signed in as alice/)).toBeVisible();
+  await expect(page.locator('#navigation-drawer')).toContainText('@alice');
   await page.getByRole('link', { name: 'Profile settings', exact: true }).click();
   await expect(page.getByLabel('Display name')).toHaveValue('');
 });
@@ -608,10 +608,14 @@ test('supports enlarged text and WCAG text spacing without overflow', async ({ p
 test('community creation, search and management pages have no axe violations', async ({ page }) => {
   const state = fixtures();
   await mockApi(page, state, { authenticated: true });
-  for (const path of ['/', '/communities', '/communities/c1', '/posts/p1', '/search?kind=posts&q=Hello', '/notifications', '/profiles/alice', '/settings/profile', '/communities/c1/manage', '/communities/new', '/communities/c1/new', '/posts/p1/edit', '/login', '/register']) {
-    await open(page, path);
-    const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
-    expect(results.violations, path + ': ' + JSON.stringify(results.violations, null, 2)).toEqual([]);
+  const paths = ['/', '/communities', '/communities/c1', '/posts/p1', '/search?kind=posts&q=Hello', '/notifications', '/profiles/alice', '/settings/profile', '/communities/c1/manage', '/communities/new', '/communities/c1/new', '/posts/p1/edit', '/login', '/register'];
+  for (const width of [1280, 768, 320]) {
+    await page.setViewportSize({ width, height: 800 });
+    for (const path of paths) {
+      await open(page, path);
+      const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
+      expect(results.violations, width + 'px ' + path + ': ' + JSON.stringify(results.violations, null, 2)).toEqual([]);
+    }
   }
 });
 
@@ -626,6 +630,23 @@ test('mobile navigation dialog contains focus and restores it', async ({ page })
   await page.keyboard.press('Escape');
   await expect(drawer).toBeHidden();
   await expect(page.getByRole('button', { name: 'Open navigation' })).toBeFocused();
+});
+
+test('wide navigation drawer follows document tab order without trapping focus', async ({ page }) => {
+  const state = fixtures();
+  await mockApi(page, state, { authenticated: true });
+  await open(page, '/');
+
+  await page.locator('.skip-link').focus();
+  await expect(page.getByRole('link', { name: 'Skip to main content' })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('button', { name: 'Close navigation' })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('link', { name: 'Commune' })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('link', { name: 'Latest discussions' })).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(page.getByRole('link', { name: 'Commune' })).toBeFocused();
 });
 
 for (const [status, message] of [

@@ -10,6 +10,17 @@ const icons = [
   ['edit', 'outlined/edit.svg'],
   ['delete', 'outlined/delete.svg'],
   ['chatBubbleOutline', 'outlined/chat_bubble_outline.svg'],
+  ['home', 'outlined/home.svg'],
+  ['groups', 'outlined/groups.svg'],
+  ['search', 'outlined/search.svg'],
+  ['notifications', 'outlined/notifications.svg'],
+  ['person', 'outlined/person.svg'],
+  ['settings', 'outlined/settings.svg'],
+  ['logout', 'outlined/logout.svg'],
+  ['login', 'outlined/login.svg'],
+  ['language', 'outlined/language.svg'],
+  ['menu', 'outlined/menu.svg'],
+  ['close', 'outlined/close.svg'],
 ];
 
 const entries = icons.map(([name, file]) => {

@@ -22,6 +22,7 @@ import Json.Decode as Decode
 import Locale exposing (Locale(..))
 import Localization exposing (LoadKind(..))
 import Ports exposing (requestCsrf)
+import Remote exposing (Remote(..))
 import Route
 import Url exposing (Url)
 
@@ -31,6 +32,7 @@ type alias Flags =
     , savedLocale : Maybe String
     , csrf : String
     , verificationToken : String
+    , wideLayout : Bool
     }
 
 
@@ -58,7 +60,9 @@ init rawFlags url key =
             , requested = requested
             , bootFailed = False
             , loading = loading
-            , drawerOpen = False
+            , drawerOpen = flags.wideLayout
+            , wideLayout = flags.wideLayout
+            , drawerProfile = NotAsked
             , dialog = Nothing
             , flash = NoFlash
             , formatted = Nothing
@@ -79,13 +83,19 @@ init rawFlags url key =
 
 flagsDecoder : Decode.Decoder Flags
 flagsDecoder =
-    Decode.map4 Flags
+    Decode.map5 Flags
         (Decode.field "languages" (Decode.list Decode.string))
         (Decode.field "savedLocale" (Decode.nullable Decode.string))
         (Decode.field "csrf" Decode.string)
         (Decode.field "verificationToken" Decode.string)
+        (Decode.field "wideLayout" Decode.bool)
 
 
 defaultFlags : Flags
 defaultFlags =
-    { languages = [ "en-US" ], savedLocale = Nothing, csrf = "", verificationToken = "" }
+    { languages = [ "en-US" ]
+    , savedLocale = Nothing
+    , csrf = ""
+    , verificationToken = ""
+    , wideLayout = False
+    }

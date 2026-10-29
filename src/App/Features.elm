@@ -1,11 +1,13 @@
 module App.Features exposing (updateAuth, updateCommunity, updateCommunityCreate, updateEditor, updateFeed, updateManage, updateNotifications, updatePost, updateProfile, updateSearch)
 
+import Api
 import App.Access exposing (authProblem, clearPrivate)
 import App.Feedback exposing (Flash(..))
 import App.Interaction exposing (applyLike)
 import App.Session exposing (AuthState(..))
 import App.State exposing (Model, Msg(..))
 import Browser.Navigation as Navigation
+import Domain
 import Feature.Auth.Update as Auth
 import Feature.Community as Community
 import Feature.CommunityCreate as CommunityCreate
@@ -17,6 +19,7 @@ import Feature.Post as Post
 import Feature.Profile as Profile
 import Feature.Search as Search
 import Ports exposing (requestCsrf)
+import Remote exposing (Remote(..))
 
 
 updateEditor : Editor.Msg -> Model -> ( Model, Cmd Msg )
@@ -114,8 +117,18 @@ updateAuth message model =
         ( session, navigation ) =
             case outcome.identity of
                 Just identity ->
-                    ( { changed | auth = Authenticated identity, authGeneration = changed.authGeneration + 1, routeEpoch = changed.routeEpoch + 1, flash = NoFlash }
-                    , Cmd.batch [ Navigation.pushUrl model.key "/", requestCsrf ]
+                    ( { changed
+                        | auth = Authenticated identity
+                        , drawerProfile = Loading
+                        , authGeneration = changed.authGeneration + 1
+                        , routeEpoch = changed.routeEpoch + 1
+                        , flash = NoFlash
+                      }
+                    , Cmd.batch
+                        [ Navigation.pushUrl model.key "/"
+                        , requestCsrf
+                        , Api.get "/api/v1/profile" (DrawerProfileLoaded << Api.decodeResponse Domain.profile)
+                        ]
                     )
 
                 Nothing ->
