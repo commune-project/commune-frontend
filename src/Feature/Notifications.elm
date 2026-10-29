@@ -180,7 +180,7 @@ pageNotifications config model active =
                             [ text (Translations.markAllRead active.texts) ]
                         , case model.unreadCount of
                             Just count ->
-                                span [ A.class "chip" ] [ text (Translations.unreadNotifications count active.texts) ]
+                                span [ A.class "chip notification-unread-summary" ] [ text (Translations.unreadNotifications count active.texts) ]
 
                             Nothing ->
                                 text ""

@@ -70,3 +70,11 @@ test('the error color stays above 4.5:1 on the page surface', () => {
     `error text only reaches ${format(surface, token('md-error'))}`
   );
 });
+
+test('the zero badge text stays above 4.5:1 on its neutral surface', () => {
+  const surface = token('md-surface-container-high');
+  assert.ok(
+    contrast(surface, token('md-on-surface-variant')) >= 4.5,
+    `zero badge text only reaches ${format(surface, token('md-on-surface-variant'))}`
+  );
+});

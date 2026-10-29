@@ -290,7 +290,17 @@ drawerNotificationLink model active extras =
         , span [ A.class "drawer-label" ] [ text labelText ]
         , case model.notificationsPage.unreadCount of
             Just count ->
-                span [ A.class "drawer-badge", A.attribute "aria-hidden" "true" ] [ text count ]
+                span
+                    [ A.class
+                        (if count == "0" then
+                            "drawer-badge drawer-badge-zero"
+
+                         else
+                            "drawer-badge"
+                        )
+                    , A.attribute "aria-hidden" "true"
+                    ]
+                    [ text count ]
 
             Nothing ->
                 text ""

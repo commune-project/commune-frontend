@@ -38,7 +38,8 @@ function fixtures() {
     likes: new Map(),
     conflictOnce: false,
     loginStatus: 200,
-    mediaStatus: 201
+    mediaStatus: 201,
+    unreadCount: 2
   };
 }
 
@@ -87,7 +88,7 @@ async function mockApi(page, state, { authenticated = false } = {}) {
       return json(route, 201, { id: 'upload1', purpose: 'post', media_type: 'image/png', size: 4, name: 'pixel.png', reference: '/api/v1/media/upload1', preview_url: '/api/v1/media/upload1/preview' });
     }
     if (path === '/api/v1/notifications/unread-count') {
-      return json(route, 200, { count: 2 });
+      return json(route, 200, { count: state.unreadCount });
     }
     if (path === '/api/v1/notifications' && method === 'GET') {
       return json(route, 200, { items: [{ id: 1, kind: 'reply', post_id: 'p1', actor_uri: 'https://forum.test/users/bob', created_at: '2026-10-20T08:30:00Z', read: false }], limit: 20, offset: 0, through_cursor: '2026-10-20T08:30:00Z|1' });
@@ -536,6 +537,8 @@ test('reads notifications and performs community management', async ({ page }) =
   const state = fixtures();
   await mockApi(page, state, { authenticated: true });
   await open(page, '/notifications');
+  await expect(page.locator('.drawer-badge')).toHaveText('2');
+  await expect(page.locator('.drawer-badge')).toHaveCSS('background-color', 'rgb(186, 26, 26)');
   await expect(page.getByText(/replied to your post/)).toBeVisible();
   await page.getByRole('button', { name: 'Mark read' }).click();
   await page.getByRole('button', { name: 'Mark this snapshot read' }).click();
@@ -556,6 +559,28 @@ test('reads notifications and performs community management', async ({ page }) =
   await expect.poll(() => state.calls.some(call => call.path.endsWith('/submissions'))).toBe(true);
   await expect.poll(() => state.calls.some(call => call.path.endsWith('/policy'))).toBe(true);
   await expect.poll(() => state.calls.some(call => call.path.endsWith('/managers'))).toBe(true);
+});
+
+test('keeps a zero unread badge neutral and matches notification action typography', async ({ page }) => {
+  const state = fixtures();
+  state.unreadCount = 0;
+  await mockApi(page, state, { authenticated: true });
+  await open(page, '/notifications');
+
+  const badge = page.getByRole('link', { name: 'Notifications (0)' }).locator('.drawer-badge');
+  await expect(badge).toHaveText('0');
+  await expect(badge).toHaveCSS('background-color', 'rgb(236, 231, 242)');
+  await expect(badge).toHaveCSS('color', 'rgb(73, 70, 79)');
+
+  const summary = page.locator('.notification-unread-summary');
+  const readAction = page.getByRole('button', { name: 'Mark this snapshot read' });
+  await expect(summary).toBeVisible();
+  await expect(summary).toHaveCSS('border-top-style', 'none');
+  const [summarySize, actionSize] = await Promise.all([
+    summary.evaluate(element => getComputedStyle(element).fontSize),
+    readAction.evaluate(element => getComputedStyle(element).fontSize)
+  ]);
+  expect(summarySize).toBe(actionSize);
 });
 
 test('manager authority is shown without implying posting membership', async ({ page }) => {

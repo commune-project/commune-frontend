@@ -346,6 +346,11 @@ h2 { margin-block: 0 0.5rem; }
   font-size: 0.85rem;
 }
 
+.notification-unread-summary {
+  border: 0;
+  font-size: inherit;
+}
+
 .post-card h2,
 .post-card h3 { overflow-wrap: anywhere; }
 .post-actions { display: flex; flex-wrap: wrap; gap: 0.25rem; align-items: center; }
@@ -513,6 +518,11 @@ h2 { margin-block: 0 0.5rem; }
   font-size: 0.8rem;
   font-weight: 700;
   text-align: center;
+}
+
+.drawer-badge-zero {
+  background: var(--md-surface-container-high);
+  color: var(--md-on-surface-variant);
 }
 
 .drawer-action { width: 100%; }
