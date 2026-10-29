@@ -2,12 +2,13 @@ module Ui.PostCard exposing (Config, deleteTriggerId, postCard, viewAttachments)
 
 import Domain
 import Generated.I18n as Translations
-import Html exposing (Html, a, article, bdi, button, div, h2, h3, li, p, section, text, time, ul)
+import Html exposing (Html, a, article, bdi, button, div, h2, h3, li, p, section, span, text, time, ul)
 import Html.Attributes as A
 import Html.Events as Events
 import List
 import Route
-import Ui.Formatting exposing (Formatting, boolText, formattedDate, likesLabel, repliesLabel)
+import Ui.Formatting exposing (Formatting, boolText, formattedCount, formattedDate, likesLabel, repliesLabel)
+import Ui.Icon
 import Ui.Rich
 
 
@@ -37,6 +38,19 @@ postCard config texts post =
 
             else
                 post.authorActor
+
+        likeName =
+            (if post.liked then
+                Translations.unlikeAction texts
+
+             else
+                Translations.likeAction texts
+            )
+                ++ " · "
+                ++ likesLabel config.formatted texts post.likes
+
+        replyName =
+            repliesLabel config.formatted texts post.replies
     in
     article [ A.class "card post-card", A.attribute "aria-labelledby" ("post-" ++ post.id) ]
         [ h2 [ A.id ("post-" ++ post.id), A.dir "auto" ]
@@ -59,40 +73,50 @@ postCard config texts post =
         , viewAttachments texts post.attachments
         , div [ A.class "post-actions" ]
             [ button
-                [ A.class "text-button"
+                [ A.class "icon-button"
+                , A.attribute "aria-label" likeName
+                , A.attribute "title" likeName
+                , A.attribute "aria-pressed" (boolText post.liked)
                 , A.disabled (not post.canLike || config.isBusy post.id)
                 , Events.onClick (config.onLike post.id post.liked)
                 ]
-                [ text
-                    ((if post.liked then
-                        Translations.unlikeAction texts
-
-                      else
-                        Translations.likeAction texts
-                     )
-                        ++ " · "
-                        ++ likesLabel config.formatted texts post.likes
-                    )
+                [ Ui.Icon.view (Ui.Icon.Like post.liked)
+                , span [ A.class "action-count" ] [ text (formattedCount config.formatted post.likes) ]
                 ]
             , if post.canEdit then
-                a [ A.class "text-button", A.href (Route.path (Route.EditPost post.id)) ]
-                    [ text (Translations.editPost texts) ]
+                a
+                    [ A.class "icon-button"
+                    , A.href (Route.path (Route.EditPost post.id))
+                    , A.attribute "aria-label" (Translations.editPost texts)
+                    , A.attribute "title" (Translations.editPost texts)
+                    ]
+                    [ Ui.Icon.view Ui.Icon.Edit ]
 
               else
                 text ""
             , if post.canDelete then
                 button
                     [ A.id (deleteTriggerId post.id)
-                    , A.class "text-button danger-text"
+                    , A.class "icon-button danger-text"
+                    , A.attribute "aria-label" (Translations.deletePost texts)
+                    , A.attribute "title" (Translations.deletePost texts)
                     , Events.onClick (config.onDelete post.id)
                     ]
-                    [ text (Translations.deletePost texts) ]
+                    [ Ui.Icon.view Ui.Icon.Delete ]
 
               else
                 text ""
             , if post.replies > 0 then
-                button [ A.class "text-button", Events.onClick (config.onReplies post.id), A.attribute "aria-expanded" (boolText (config.isExpanded post.id)) ]
-                    [ text (repliesLabel config.formatted texts post.replies) ]
+                button
+                    [ A.class "icon-button"
+                    , A.attribute "aria-label" replyName
+                    , A.attribute "title" replyName
+                    , A.attribute "aria-expanded" (boolText (config.isExpanded post.id))
+                    , Events.onClick (config.onReplies post.id)
+                    ]
+                    [ Ui.Icon.view Ui.Icon.Reply
+                    , span [ A.class "action-count" ] [ text (formattedCount config.formatted post.replies) ]
+                    ]
 
               else
                 text ""

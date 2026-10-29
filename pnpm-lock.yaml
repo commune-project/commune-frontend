@@ -15,6 +15,9 @@ importers:
       '@axe-core/playwright':
         specifier: 4.14.0
         version: 4.14.0(playwright-core@1.64.1)
+      '@material-design-icons/svg':
+        specifier: 0.14.15
+        version: 0.14.15
       '@playwright/test':
         specifier: 1.64.1
         version: 1.64.1
@@ -242,6 +245,9 @@ packages:
     engines: {node: '>=18'}
     cpu: [x64]
     os: [win32]
+
+  '@material-design-icons/svg@0.14.15':
+    resolution: {integrity: sha512-6nbjwGwyJnphwQUscJAYqw1Tk6+W8KvsgOAeyVgzIFXVsHfgX5XyplTUcZ29wbcTUysMMyCUi1LYpmFKA/e61g==}
 
   '@napi-rs/lzma-linux-x64-gnu@1.5.1':
     resolution: {integrity: sha512-oTXEIha4SsuXdTA4Iyskj0kpdx2yVXdhd75c2v3xGrHFfVMsbhTPZU/nMPL4sWKo4pBHm3aucLaqGlF696dTyQ==}
@@ -816,6 +822,8 @@ snapshots:
 
   '@esbuild/win32-x64@0.28.2':
     optional: true
+
+  '@material-design-icons/svg@0.14.15': {}
 
   '@napi-rs/lzma-linux-x64-gnu@1.5.1':
     optional: true

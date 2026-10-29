@@ -6,9 +6,10 @@
   "scripts": {
     "i18n:generate": "travelm-agency translations --elm_path=src/Generated/I18n.elm --json_path=public/assets/i18n --hash && node scripts/prune-i18n.mjs",
     "i18n:check": "node scripts/check-i18n.mjs",
+    "icons:generate": "node scripts/generate-icons.mjs",
     "compile": "elm make src/Main.elm --output=public/elm.js",
-    "dev": "npm run i18n:generate && npm run compile && vite --host 127.0.0.1",
-    "build": "npm run i18n:generate && elm make src/Main.elm --optimize --output=public/elm.js && vite build",
+    "dev": "npm run i18n:generate && npm run icons:generate && npm run compile && vite --host 127.0.0.1",
+    "build": "npm run i18n:generate && npm run icons:generate && elm make src/Main.elm --optimize --output=public/elm.js && vite build",
     "format": "elm-format src tests --yes",
     "format:check": "elm-format src tests --validate",
     "test": "node --test tests-js/*.test.js && elm-test",
@@ -20,6 +21,7 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "4.14.0",
+    "@material-design-icons/svg": "0.14.15",
     "@playwright/test": "1.64.1",
     "elm": "0.19.1-6",
     "elm-format": "0.8.8",

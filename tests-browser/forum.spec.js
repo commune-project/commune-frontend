@@ -434,8 +434,12 @@ test('likes, deletes with accessible confirmation, and updates profile', async (
   const state = fixtures();
   await mockApi(page, state, { authenticated: true });
   await open(page, '/posts/p1');
-  await page.getByRole('article', { name: 'Hello world' }).getByRole('button', { name: /^Like/ }).click();
-  await expect(page.getByRole('article', { name: 'Hello world' }).getByRole('button', { name: /^Unlike/ })).toBeVisible();
+  const topicCard = page.getByRole('article', { name: 'Hello world' });
+  await expect(topicCard.getByRole('button', { name: /^Like/ })).toHaveAttribute('aria-pressed', 'false');
+  await topicCard.getByRole('button', { name: /^Like/ }).click();
+  const unlike = topicCard.getByRole('button', { name: /^Unlike/ });
+  await expect(unlike).toBeVisible();
+  await expect(unlike).toHaveAttribute('aria-pressed', 'true');
 
   await page.getByRole('button', { name: 'Delete post' }).click();
   await expect(page.getByRole('dialog', { name: 'Delete this post?' })).toBeVisible();
@@ -451,6 +455,68 @@ test('likes, deletes with accessible confirmation, and updates profile', async (
   await expect(page.locator('img.avatar')).toHaveAttribute('src', '/api/v1/media/upload1/preview');
   await page.getByRole('button', { name: 'Save profile' }).click();
   await expect(page.getByText('Changes saved.')).toBeVisible();
+});
+
+test('post action icons keep one row, localized tooltips and focus order', async ({ page }) => {
+  const state = fixtures();
+  state.posts.p1.reply_count = 3;
+  await mockApi(page, state, { authenticated: true });
+  await page.setViewportSize({ width: 320, height: 800 });
+  await open(page, '/posts/p1');
+
+  const card = page.getByRole('article', { name: 'Hello world' });
+  const actions = card.locator('.post-actions .icon-button');
+  await expect(actions).toHaveCount(4);
+
+  const tops = await actions.evaluateAll(nodes => nodes.map(node => Math.round(node.getBoundingClientRect().top)));
+  expect(new Set(tops).size).toBe(1);
+
+  const glyphTops = await actions.locator('svg').evaluateAll(nodes => nodes.map(node => Math.round(node.getBoundingClientRect().top)));
+  expect(new Set(glyphTops).size).toBe(1);
+
+  const [iconBox, countBox] = await actions.nth(0).evaluate(node => {
+    const icon = node.querySelector('svg').getBoundingClientRect();
+    const count = node.querySelector('.action-count').getBoundingClientRect();
+    return [{ right: icon.right, top: icon.top }, { left: count.left, top: count.top }];
+  });
+  expect(countBox.left).toBeGreaterThanOrEqual(iconBox.right);
+  expect(Math.abs(countBox.top - iconBox.top)).toBeLessThanOrEqual(4);
+
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(overflow).toBeLessThanOrEqual(0);
+
+  await expect(actions.nth(0)).toHaveAttribute('title', 'Like · 2 likes');
+  await expect(actions.nth(1)).toHaveAttribute('title', 'Edit post');
+  await expect(actions.nth(2)).toHaveAttribute('title', 'Delete post');
+  await expect(actions.nth(3)).toHaveAttribute('title', '3 replies');
+  await expect(actions.nth(0).locator('.action-count')).toHaveText('2');
+  await expect(actions.nth(3).locator('.action-count')).toHaveText('3');
+  await expect(card.getByRole('button', { name: 'Like · 2 likes' })).toBeVisible();
+  await expect(card.getByRole('button', { name: '3 replies' })).toBeVisible();
+
+  await actions.nth(0).focus();
+  await page.keyboard.press('Tab');
+  await expect(actions.nth(1)).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(actions.nth(2)).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(actions.nth(3)).toBeFocused();
+
+  await page.emulateMedia({ forcedColors: 'active' });
+  const glyphs = await actions.locator('svg').evaluateAll(nodes => nodes.map(node => {
+    const box = node.getBoundingClientRect();
+    return { width: box.width, height: box.height, transform: getComputedStyle(node).transform };
+  }));
+  expect(glyphs.every(glyph => glyph.width > 0 && glyph.height > 0)).toBe(true);
+  expect(glyphs.every(glyph => glyph.transform === 'none')).toBe(true);
+  await page.emulateMedia({ forcedColors: 'none' });
+
+  for (const [locale, label] of [['zh-cmn-Hans-CN', '赞 · 2 个赞'], ['zh-cmn-Hant-TW', '按讚 · 2 個讚']]) {
+    await page.addInitScript(value => localStorage.setItem('commune.locale', value), locale);
+    await page.goto('/posts/p1');
+    await expect(page.locator('#main-heading')).toBeVisible();
+    await expect(page.getByRole('article').locator('.post-actions .icon-button').first()).toHaveAttribute('title', label);
+  }
 });
 
 test('failed upload retains editor content and reports the failure', async ({ page }) => {

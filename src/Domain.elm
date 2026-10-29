@@ -267,4 +267,3 @@ media =
 size : Decoder String
 size =
     D.oneOf [ D.string, D.int |> D.map String.fromInt ]
-

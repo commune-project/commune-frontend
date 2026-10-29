@@ -367,7 +367,19 @@ h2 { margin-block: 0 0.5rem; }
 
 .post-card h2,
 .post-card h3 { overflow-wrap: anywhere; }
-.post-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; }
+.post-actions { display: flex; flex-wrap: wrap; gap: 0.25rem; align-items: center; }
+.post-actions .icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  min-width: 48px;
+  padding-inline: 0.75rem;
+  border-radius: 999px;
+  margin-block-start: 0;
+}
+.post-actions .icon-button .icon { flex: none; width: 1.5rem; height: 1.5rem; }
+.post-actions .action-count { font-size: 0.9rem; font-weight: 650; font-variant-numeric: tabular-nums; }
 .post-actions .text-button { text-decoration: none; }
 .nested { display: grid; gap: 0.75rem; margin-inline-start: clamp(0rem, 4vw, 2rem); }
 .notification-list,
