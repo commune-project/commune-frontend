@@ -4,7 +4,7 @@ The notifications page renders its unread-count summary smaller than the adjacen
 
 ## What Changes
 
-- Make the unread-count summary on the notifications page use the same text size as the adjacent read action, scoped to the notifications surface so community mode and policy chips keep their existing compact size.
+- Make the unread-count summary on the notifications page use the same text size as the adjacent read action and remove its accent outline, scoped to the notifications surface so community mode and policy chips keep their existing compact size and outline.
 - Keep the zero unread count visible in the drawer, but render it with a neutral surface treatment instead of the error color.
 - Preserve the drawer notification accessible name with the localized phrase and count, including zero.
 - Add browser coverage for the zero-count badge treatment and the matching notification action text size.

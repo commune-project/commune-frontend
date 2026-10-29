@@ -42,7 +42,7 @@ Decorative accent color SHALL be confined to emphasis that does not carry meanin
 
 The navigation drawer SHALL be 360 CSS pixels wide where the viewport allows, SHALL begin below the application bar, and SHALL scroll its own content when that content exceeds the viewport height. It SHALL present, in order: a profile header, the primary destinations Latest, Communities, Search, and Notifications, a separator, the account destinations, and a footer containing the language selector and localization status. The drawer SHALL expose a navigation landmark named by the localized main navigation label.
 
-Each destination SHALL render as a control at least 48 CSS pixels tall with a decorative icon and a visible localized label. The current destination SHALL show an indicator surface and at least one non-color cue. The notification destination SHALL display the unread count as a trailing badge, and its accessible name SHALL retain the full localized notification phrase including the count.
+Each destination SHALL render as a control at least 48 CSS pixels tall with a decorative icon and a visible localized label. The current destination SHALL show an indicator surface and at least one non-color cue. The notification destination SHALL display the unread count as a trailing badge, and its accessible name SHALL retain the full localized notification phrase including the count, including when the count is zero. When the unread count is zero, the trailing badge SHALL remain visible with a neutral surface treatment and SHALL NOT use the error color.
 
 #### Scenario: Authenticated destinations
 
@@ -58,6 +58,11 @@ Each destination SHALL render as a control at least 48 CSS pixels tall with a de
 
 - **WHEN** the signed-in reader has unread notifications
 - **THEN** the notification destination shows the count beside its label and its accessible name still contains the complete localized notification phrase
+
+#### Scenario: Zero unread badge
+
+- **WHEN** the signed-in reader has zero unread notifications
+- **THEN** the notification destination still shows a zero badge, the badge uses a neutral surface treatment instead of the error color, and its accessible name contains the complete localized notification phrase including the zero count
 
 #### Scenario: Active destination
 
@@ -194,3 +199,14 @@ The like control SHALL expose its current state programmatically as a pressed to
 #### Scenario: Delete keeps its flow
 - **WHEN** a reader activates the delete icon and cancels or confirms the confirmation dialog
 - **THEN** the existing confirmation, cancellation, deletion, and focus restoration behavior is unchanged
+
+### Requirement: Notification unread summary presentation
+On the notifications page, the unread-count summary in the action row SHALL use the same computed text size as the adjacent read action and SHALL render without the accent outline used by categorical chips. These changes SHALL apply to the notification summary only and SHALL NOT change the compact text size or accent outline of community mode or policy chips.
+
+#### Scenario: Unread summary matches the adjacent action
+- **WHEN** an authenticated reader views the notifications page with an unread count available
+- **THEN** the unread-count summary and the adjacent read action render at the same computed text size, and the unread-count summary has no accent outline
+
+#### Scenario: Community chips keep their compact size
+- **WHEN** community mode or policy chips render on community surfaces
+- **THEN** their text remains at the existing compact size and their accent outline remains visible

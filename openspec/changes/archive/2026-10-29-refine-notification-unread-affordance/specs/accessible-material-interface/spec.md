@@ -38,16 +38,16 @@ Each destination SHALL render as a control at least 48 CSS pixels tall with a de
 
 ## ADDED Requirements
 
-### Requirement: Notification unread summary typography
+### Requirement: Notification unread summary presentation
 
-On the notifications page, the unread-count summary in the action row SHALL use the same computed text size as the adjacent read action. The sizing SHALL apply to the notification summary only and SHALL NOT change the compact text size of community mode or policy chips.
+On the notifications page, the unread-count summary in the action row SHALL use the same computed text size as the adjacent read action and SHALL render without the accent outline used by categorical chips. These changes SHALL apply to the notification summary only and SHALL NOT change the compact text size or accent outline of community mode or policy chips.
 
 #### Scenario: Unread summary matches the adjacent action
 
 - **WHEN** an authenticated reader views the notifications page with an unread count available
-- **THEN** the unread-count summary and the adjacent read action render at the same computed text size
+- **THEN** the unread-count summary and the adjacent read action render at the same computed text size, and the unread-count summary has no accent outline
 
 #### Scenario: Community chips keep their compact size
 
 - **WHEN** community mode or policy chips render on community surfaces
-- **THEN** their text remains at the existing compact size
+- **THEN** their text remains at the existing compact size and their accent outline remains visible

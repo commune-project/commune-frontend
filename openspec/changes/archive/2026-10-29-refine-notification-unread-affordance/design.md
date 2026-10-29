@@ -1,12 +1,12 @@
 ## Context
 
-The notifications page places the bulk-read action and the unread summary in one action row. The read action inherits body text size, while the shared `.chip` rule applies a smaller size used by community mode and policy labels. The drawer renders every available unread count with one error-colored badge rule. See `proposal.md` for the motivating problem and the delta spec for the required behavior.
+The notifications page places the bulk-read action and the unread summary in one action row. The read action inherits body text size, while the shared `.chip` rule applies a smaller size and an accent outline used by community mode and policy labels. The drawer renders every available unread count with one error-colored badge rule. See `proposal.md` for the motivating problem and the delta spec for the required behavior.
 
 ## Goals / Non-Goals
 
 **Goals:**
 
-- Give the notifications page unread summary the same computed text size as the adjacent read action.
+- Give the notifications page unread summary the same computed text size as the adjacent read action and no accent outline.
 - Keep a zero unread count visible in the drawer with a neutral surface treatment.
 - Keep the accessible name complete, including the zero count.
 - Limit visual changes to notification affordances.
@@ -19,9 +19,9 @@ The notifications page places the bulk-read action and the unread summary in one
 
 ## Decisions
 
-### Scope the summary size with a notification-specific modifier
+### Scope the summary presentation with a notification-specific modifier
 
-Add a notification-specific class to the unread summary chip and set its text size to inherit from the action row. The shared `.chip` rule remains unchanged because community cards and management surfaces rely on its compact size.
+Add a notification-specific class to the unread summary chip, set its text size to inherit from the action row, and remove its border. The shared `.chip` rule remains unchanged because community cards and management surfaces rely on its compact size and outline.
 
 Alternative considered: raise `.chip` globally to body size. Rejected because it would enlarge unrelated metadata chips and exceed the requested scope.
 
