@@ -1,4 +1,4 @@
-module App.State exposing (Model, Msg(..))
+module App.State exposing (ConfirmationAction(..), Model, Msg(..))
 
 import Api
 import App.Context exposing (Active)
@@ -7,6 +7,8 @@ import App.Session exposing (AuthState(..))
 import Browser
 import Browser.Navigation as Navigation
 import Domain
+import Feature.AccountBlocks as AccountBlocks
+import Feature.AccountContent as AccountContent
 import Feature.Auth.State
 import Feature.Auth.Update as Auth
 import Feature.Community as Community
@@ -19,7 +21,10 @@ import Feature.Feed as Feed
 import Feature.Notifications as Notifications
 import Feature.Post as Post
 import Feature.Profile as Profile
+import Feature.Report as Report
 import Feature.Search as Search
+import Feature.SiteAdmin.State
+import Feature.SiteAdmin.Update as SiteAdmin
 import Generated.I18n as Translations
 import Http
 import Json.Decode as Decode
@@ -46,12 +51,16 @@ type alias Model =
     , drawerOpen : Bool
     , wideLayout : Bool
     , drawerProfile : Remote Domain.Profile
-    , dialog : Maybe String
+    , dialog : Maybe ConfirmationAction
     , flash : Flash
     , formatted : Maybe Formatting
     , account : Feature.Auth.State.Model
     , editorPage : Feature.Editor.State.Model
     , management : Feature.CommunityManage.State.Model
+    , accountContent : AccountContent.Model
+    , accountBlocks : AccountBlocks.Model
+    , report : Report.Model
+    , siteAdmin : Feature.SiteAdmin.State.Model
     , profile : Profile.Model
     , searchPage : Search.Model
     , notificationsPage : Notifications.Model
@@ -60,6 +69,14 @@ type alias Model =
     , communityPage : Community.Model
     , feed : Feed.Model
     }
+
+
+type ConfirmationAction
+    = DeletePostDialog String
+    | ResolveReportDialog String String
+    | RemoveSiteBanDialog
+    | RemoveCommunityBanDialog
+    | RemoveBlockDialog String String
 
 
 type Msg
@@ -77,13 +94,22 @@ type Msg
     | CloseDrawer
     | DrawerClosed
     | OpenDeleteDialog String
+    | OpenConfirmation ConfirmationAction
     | CloseDialog
-    | ConfirmDelete String
+    | ConfirmDialog
     | Noop
     | EditorMessage Editor.Msg
     | EditorResponse Int Editor.Msg
     | ManageMessage Manage.Msg
     | ManageResponse Int Manage.Msg
+    | AccountContentMessage AccountContent.Msg
+    | AccountContentResponse Int AccountContent.Msg
+    | AccountBlocksMessage AccountBlocks.Msg
+    | AccountBlocksResponse Int AccountBlocks.Msg
+    | ReportMessage Report.Msg
+    | ReportResponse Int Report.Msg
+    | SiteAdminMessage SiteAdmin.Msg
+    | SiteAdminResponse Int SiteAdmin.Msg
     | AuthMessage Auth.Msg
     | AuthResponse Int Auth.Msg
     | ProfileMessage Profile.Msg
@@ -97,5 +123,6 @@ type Msg
     | PostMessage Post.Msg
     | PostResponse Int Post.Msg
     | FeedResponse Int Feed.Msg
+    | CommunityMessage Community.Msg
     | CommunityResponse Int Community.Msg
     | DismissFlash

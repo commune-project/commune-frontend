@@ -23,6 +23,13 @@ type Icon
     | Language
     | Menu
     | Close
+    | ThumbUp Bool
+    | ThumbDown Bool
+    | Bookmark Bool
+    | Hide Bool
+    | Report
+    | Block
+    | Admin
 
 
 view : Icon -> Html msg
@@ -89,3 +96,36 @@ data icon =
 
         Close ->
             Icons.close
+
+        ThumbUp True ->
+            Icons.thumbUp
+
+        ThumbUp False ->
+            Icons.thumbUp
+
+        ThumbDown True ->
+            Icons.thumbDown
+
+        ThumbDown False ->
+            Icons.thumbDown
+
+        Bookmark True ->
+            Icons.bookmark
+
+        Bookmark False ->
+            Icons.bookmarkBorder
+
+        Hide True ->
+            Icons.visibility
+
+        Hide False ->
+            Icons.visibilityOff
+
+        Report ->
+            Icons.flag
+
+        Block ->
+            Icons.block
+
+        Admin ->
+            Icons.settings

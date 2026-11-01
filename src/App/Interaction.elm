@@ -1,44 +1,50 @@
-module App.Interaction exposing (applyLike)
+module App.Interaction exposing (applyPost)
 
 import App.State exposing (Model)
-import Dict exposing (Dict)
+import Domain
 import Feature.Search as Search exposing (SearchResult(..))
 import List
 import Remote exposing (Remote(..))
 
 
-applyLike : String -> Bool -> Model -> Model
-applyLike id wasLiked model =
+applyPost : Domain.Post -> Model -> Model
+applyPost post model =
     let
-        transform post =
-            if post.id == id then
-                { post
-                    | liked = not wasLiked
-                    , likes =
-                        max 0
-                            (post.likes
-                                + (if wasLiked then
-                                    -1
-
-                                   else
-                                    1
-                                  )
-                            )
-                }
+        transform candidate =
+            if candidate.id == post.id then
+                post
 
             else
-                post
+                candidate
 
         page remote =
             Remote.map (\data -> { data | items = List.map transform data.items }) remote
+
+        threaded (Domain.ThreadedPost node) =
+            Domain.ThreadedPost
+                { node
+                    | post = transform node.post
+                    , children = List.map threaded node.children
+                }
+
+        threadedPage remote =
+            Remote.map (\data -> { data | items = List.map threaded data.items }) remote
 
         searchState =
             model.searchPage.search
     in
     { model
-        | posts = (\postsState -> { postsState | post = Remote.map transform model.posts.post, replies = page model.posts.replies, nestedReplies = Dict.map (\_ value -> page value) model.posts.nestedReplies }) model.posts
+        | posts =
+            (\postsState ->
+                { postsState
+                    | post = Remote.map transform model.posts.post
+                    , replies = threadedPage model.posts.replies
+                }
+            )
+                model.posts
         , feed = (\feedState -> { feedState | topics = page model.feed.topics }) model.feed
         , communityPage = (\communityPageState -> { communityPageState | communityTopics = page model.communityPage.communityTopics }) model.communityPage
+        , accountContent = (\state -> { state | posts = page model.accountContent.posts }) model.accountContent
         , searchPage =
             (\searchPageState ->
                 { searchPageState

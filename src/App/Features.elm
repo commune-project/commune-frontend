@@ -1,13 +1,15 @@
-module App.Features exposing (updateAuth, updateCommunity, updateCommunityCreate, updateEditor, updateFeed, updateManage, updateNotifications, updatePost, updateProfile, updateSearch)
+module App.Features exposing (updateAccountBlocks, updateAccountContent, updateAuth, updateCommunity, updateCommunityCreate, updateEditor, updateFeed, updateManage, updateNotifications, updatePost, updateProfile, updateReport, updateSearch, updateSiteAdmin)
 
 import Api
 import App.Access exposing (authProblem, clearPrivate)
 import App.Feedback exposing (Flash(..))
-import App.Interaction exposing (applyLike)
+import App.Interaction exposing (applyPost)
 import App.Session exposing (AuthState(..))
 import App.State exposing (Model, Msg(..))
 import Browser.Navigation as Navigation
 import Domain
+import Feature.AccountBlocks as AccountBlocks
+import Feature.AccountContent as AccountContent
 import Feature.Auth.Update as Auth
 import Feature.Community as Community
 import Feature.CommunityCreate as CommunityCreate
@@ -17,9 +19,12 @@ import Feature.Feed as Feed
 import Feature.Notifications as Notifications
 import Feature.Post as Post
 import Feature.Profile as Profile
+import Feature.Report as Report
 import Feature.Search as Search
-import Ports exposing (requestCsrf)
+import Feature.SiteAdmin.Update as SiteAdmin
+import Ports exposing (closeDialog, focus, openDialog, requestCsrf)
 import Remote exposing (Remote(..))
+import Url
 
 
 updateEditor : Editor.Msg -> Model -> ( Model, Cmd Msg )
@@ -97,6 +102,136 @@ updateManage message model =
     )
 
 
+updateAccountContent : AccountContent.Msg -> Model -> ( Model, Cmd Msg )
+updateAccountContent message model =
+    let
+        ( state, problem ) =
+            AccountContent.update message model.accountContent
+
+        base =
+            case problem of
+                Just failure ->
+                    authProblem model failure
+
+                Nothing ->
+                    model
+    in
+    ( { base | accountContent = state }, Cmd.none )
+
+
+updateAccountBlocks : AccountBlocks.Msg -> Model -> ( Model, Cmd Msg )
+updateAccountBlocks message model =
+    let
+        ( state, command, outcome ) =
+            AccountBlocks.update model.csrf message model.accountBlocks
+
+        base =
+            case outcome.sessionProblem of
+                Just problem ->
+                    authProblem model problem
+
+                Nothing ->
+                    model
+    in
+    ( { base
+        | flash =
+            if outcome.flash == NoFlash then
+                base.flash
+
+            else
+                outcome.flash
+        , accountBlocks = state
+      }
+    , Cmd.map (AccountBlocksResponse model.routeEpoch) command
+    )
+
+
+updateReport : Report.Msg -> Model -> ( Model, Cmd Msg )
+updateReport message model =
+    let
+        ( state, command, outcome ) =
+            Report.update model.csrf message model.report
+
+        base =
+            case outcome.sessionProblem of
+                Just problem ->
+                    authProblem model problem
+
+                Nothing ->
+                    model
+
+        dialogCommand =
+            case outcome.dialog of
+                Just Report.OpenDialog ->
+                    openDialog "report-dialog"
+
+                Just Report.CloseDialog ->
+                    Cmd.batch [ closeDialog "report-dialog", focus "main-heading" ]
+
+                Nothing ->
+                    Cmd.none
+    in
+    ( { base
+        | flash =
+            if outcome.flash == NoFlash then
+                base.flash
+
+            else
+                outcome.flash
+        , report = state
+      }
+    , Cmd.batch [ Cmd.map (ReportResponse model.routeEpoch) command, dialogCommand ]
+    )
+
+
+updateSiteAdmin : SiteAdmin.Msg -> Model -> ( Model, Cmd Msg )
+updateSiteAdmin message model =
+    let
+        ( state, command, outcome ) =
+            SiteAdmin.update { csrf = model.csrf, url = model.url } message model.siteAdmin
+
+        base =
+            case outcome.sessionProblem of
+                Just problem ->
+                    authProblem model problem
+
+                Nothing ->
+                    model
+
+        navigation =
+            case outcome.navigation of
+                Just target ->
+                    Navigation.pushUrl model.key target
+
+                Nothing ->
+                    Cmd.none
+
+        refresh =
+            if outcome.refreshModlog then
+                let
+                    ( _, refreshCommand ) =
+                        SiteAdmin.loadModlog model.url state
+                in
+                Cmd.batch
+                    [ refreshCommand |> Cmd.map (SiteAdminResponse model.routeEpoch)
+                    ]
+
+            else
+                Cmd.none
+    in
+    ( { base
+        | flash =
+            if outcome.flash == NoFlash then
+                base.flash
+
+            else
+                outcome.flash
+        , siteAdmin = state
+      }
+    , Cmd.batch [ Cmd.map (SiteAdminResponse model.routeEpoch) command, navigation, refresh ]
+    )
+
+
 updateAuth : Auth.Msg -> Model -> ( Model, Cmd Msg )
 updateAuth message model =
     let
@@ -138,7 +273,14 @@ updateAuth message model =
                         )
 
                     else
-                        ( changed, Cmd.none )
+                        ( changed
+                        , case outcome.navigation of
+                            Just target ->
+                                Navigation.pushUrl model.key target
+
+                            Nothing ->
+                                Cmd.none
+                        )
     in
     ( session, Cmd.batch [ Cmd.map (AuthResponse model.routeEpoch) command, navigation ] )
 
@@ -288,7 +430,7 @@ updatePost : Post.Msg -> Model -> ( Model, Cmd Msg )
 updatePost message model =
     let
         ( state, command, outcome ) =
-            Post.update model.csrf message model.posts
+            Post.update model.csrf model.url message model.posts
 
         base =
             case outcome.sessionProblem of
@@ -311,7 +453,6 @@ updatePost message model =
                         { postsState
                             | post = state.post
                             , replies = state.replies
-                            , nestedReplies = state.nestedReplies
                             , expandedReplies = state.expandedReplies
                             , busy =
                                 if outcome.sessionProblem == Nothing then
@@ -324,10 +465,10 @@ updatePost message model =
                         base.posts
             }
 
-        liked =
-            case outcome.like of
-                Just ( id, wasLiked ) ->
-                    applyLike id wasLiked changed
+        applied =
+            case outcome.refreshed of
+                Just post ->
+                    applyPost post changed
 
                 Nothing ->
                     changed
@@ -339,8 +480,15 @@ updatePost message model =
 
                 Nothing ->
                     Cmd.none
+
+        reload =
+            if outcome.reloadRoute then
+                Navigation.pushUrl model.key (Url.toString model.url)
+
+            else
+                Cmd.none
     in
-    ( liked, Cmd.batch [ Cmd.map (PostResponse model.routeEpoch) command, navigation ] )
+    ( applied, Cmd.batch [ Cmd.map (PostResponse model.routeEpoch) command, navigation, reload ] )
 
 
 updateFeed : Feed.Msg -> Model -> ( Model, Cmd Msg )
@@ -363,15 +511,25 @@ updateFeed message model =
 updateCommunity : Community.Msg -> Model -> ( Model, Cmd Msg )
 updateCommunity message model =
     let
-        ( state, problem ) =
-            Community.update message model.communityPage
+        ( state, command, outcome ) =
+            Community.update model.csrf message model.communityPage
 
         base =
-            case problem of
+            case outcome.sessionProblem of
                 Just failure ->
                     authProblem model failure
 
                 Nothing ->
                     model
     in
-    ( { base | communityPage = state }, Cmd.none )
+    ( { base
+        | communityPage = state
+        , flash =
+            if outcome.flash == NoFlash then
+                base.flash
+
+            else
+                outcome.flash
+      }
+    , Cmd.map (CommunityResponse model.routeEpoch) command
+    )

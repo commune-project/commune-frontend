@@ -214,7 +214,7 @@ notificationItem config model active notice =
         [ p [] [ strong [] [ bdi [] [ text notice.actor ] ], text " ", text (notificationKind active.texts notice.kind) ]
         , p [ A.class "metadata" ] [ time [ A.datetime notice.date, A.attribute "data-commune-time" "" ] [ text (formattedDate model.formatted notice.date) ] ]
         , div [ A.class "actions" ]
-            [ a [ A.href (Route.path (Route.Post notice.post)) ] [ text (Translations.repliesTitle active.texts) ]
+            [ notificationTargetLink active notice
             , if notice.read then
                 text ""
 
@@ -223,6 +223,33 @@ notificationItem config model active notice =
                     [ text (Translations.markRead active.texts) ]
             ]
         ]
+
+
+notificationTargetLink : Active -> Domain.Notice -> Html msg
+notificationTargetLink active notice =
+    case notice.targetKind of
+        "post" ->
+            a
+                [ A.href
+                    (Route.path
+                        (Route.Post
+                            (if String.isEmpty notice.targetId then
+                                notice.post
+
+                             else
+                                notice.targetId
+                            )
+                        )
+                    )
+                ]
+                [ text (Translations.repliesTitle active.texts) ]
+
+        "community" ->
+            a [ A.href (Route.path (Route.Community notice.targetId)) ]
+                [ text (Translations.communitiesTitle active.texts) ]
+
+        _ ->
+            span [ A.class "muted" ] [ text (Translations.notificationOther active.texts) ]
 
 
 notificationKind : Translations.I18n -> String -> String
@@ -236,6 +263,12 @@ notificationKind texts kind =
 
         "mention" ->
             Translations.notificationMention texts
+
+        "report" ->
+            Translations.notificationReport texts
+
+        "moderation" ->
+            Translations.notificationModeration texts
 
         _ ->
             Translations.notificationOther texts

@@ -1,16 +1,20 @@
-module Feature.Community exposing (Config, Model, Msg(..), initial, load, pageCommunities, pageCommunity, update)
+module Feature.Community exposing (Config, Model, Msg(..), Outcome, ViewModel, initial, load, pageCommunities, pageCommunity, update)
 
 import Api
 import App.Context exposing (Active)
+import App.Feedback exposing (Flash(..))
+import App.Session exposing (AuthState(..))
 import Domain
 import Generated.I18n as Translations
-import Html exposing (Html, a, div, h2, p, section, text)
+import Html exposing (Html, a, button, div, h2, p, section, span, text)
 import Html.Attributes as A
+import Html.Events as Events
 import List
 import Remote exposing (Remote(..))
 import Route
+import Set exposing (Set)
 import Ui.CommunityCard exposing (communityCard)
-import Ui.Feedback exposing (viewRemote)
+import Ui.Feedback exposing (problemText, viewRemote)
 import Ui.Formatting exposing (policyLabel)
 import Ui.Layout exposing (pageHeading)
 import Ui.Pagination exposing (emptyWithPagination, viewPagination)
@@ -21,55 +25,137 @@ type alias Model =
     { communities : Remote (Domain.Page Domain.Community)
     , community : Remote Domain.Community
     , communityTopics : Remote (Domain.Page Domain.Post)
+    , busy : Set String
+    , problem : Maybe Api.Problem
     }
 
 
 initial : Model
 initial =
-    { communities = NotAsked, community = NotAsked, communityTopics = NotAsked }
+    { communities = NotAsked, community = NotAsked, communityTopics = NotAsked, busy = Set.empty, problem = Nothing }
 
 
 type Msg
     = CommunitiesLoaded Api.Response
     | CommunityLoaded Api.Response
     | TopicsLoaded Api.Response
+    | ToggleFollow Bool
+    | FollowDone Bool Api.Response
 
 
-sessionProblem : Api.Problem -> Maybe Api.Problem
-sessionProblem problem =
-    if problem.status == 401 then
-        Just problem
-
-    else
-        Nothing
+type alias Outcome =
+    { flash : Flash, sessionProblem : Maybe Api.Problem }
 
 
-update : Msg -> Model -> ( Model, Maybe Api.Problem )
-update message model =
+update : String -> Msg -> Model -> ( Model, Cmd Msg, Outcome )
+update csrf message model =
     case message of
+        ToggleFollow following ->
+            if Set.member "follow" model.busy then
+                ( model, Cmd.none, { flash = NoFlash, sessionProblem = Nothing } )
+
+            else
+                case model.community of
+                    Ready community ->
+                        ( { model | busy = Set.insert "follow" model.busy, problem = Nothing }
+                        , Api.send csrf
+                            (if following then
+                                "DELETE"
+
+                             else
+                                "POST"
+                            )
+                            ("/api/v1/communities/" ++ Url.percentEncode community.id ++ "/follow")
+                            ""
+                            (FollowDone following)
+                        , { flash = NoFlash, sessionProblem = Nothing }
+                        )
+
+                    _ ->
+                        ( model, Cmd.none, { flash = NoFlash, sessionProblem = Nothing } )
+
+        FollowDone _ response ->
+            case Api.decodeUnit response of
+                Ok () ->
+                    case model.community of
+                        Ready community ->
+                            ( { model | busy = Set.remove "follow" model.busy, community = Loading }
+                            , Api.get ("/api/v1/communities/" ++ Url.percentEncode community.id) CommunityLoaded
+                            , { flash = FlashSaved, sessionProblem = Nothing }
+                            )
+
+                        _ ->
+                            ( { model | busy = Set.remove "follow" model.busy }
+                            , Cmd.none
+                            , { flash = FlashSaved, sessionProblem = Nothing }
+                            )
+
+                Err problem ->
+                    ( { model | busy = Set.remove "follow" model.busy, problem = Just problem }
+                    , Cmd.none
+                    , { flash = FlashProblem problem
+                      , sessionProblem =
+                            if problem.status == 401 then
+                                Just problem
+
+                            else
+                                Nothing
+                      }
+                    )
+
         CommunitiesLoaded response ->
             case Api.decodeResponse (Domain.page Domain.community) response of
                 Ok page ->
-                    ( { model | communities = Ready page }, Nothing )
+                    ( { model | communities = Ready page }, Cmd.none, { flash = NoFlash, sessionProblem = Nothing } )
 
                 Err problem ->
-                    ( { model | communities = Failed problem }, sessionProblem problem )
+                    ( { model | communities = Failed problem }
+                    , Cmd.none
+                    , { flash = NoFlash
+                      , sessionProblem =
+                            if problem.status == 401 then
+                                Just problem
+
+                            else
+                                Nothing
+                      }
+                    )
 
         CommunityLoaded response ->
             case Api.decodeResponse Domain.community response of
                 Ok community ->
-                    ( { model | community = Ready community }, Nothing )
+                    ( { model | community = Ready community }, Cmd.none, { flash = NoFlash, sessionProblem = Nothing } )
 
                 Err problem ->
-                    ( { model | community = Failed problem }, sessionProblem problem )
+                    ( { model | community = Failed problem }
+                    , Cmd.none
+                    , { flash = NoFlash
+                      , sessionProblem =
+                            if problem.status == 401 then
+                                Just problem
+
+                            else
+                                Nothing
+                      }
+                    )
 
         TopicsLoaded response ->
             case Api.decodeResponse (Domain.page Domain.post) response of
                 Ok page ->
-                    ( { model | communityTopics = Ready page }, Nothing )
+                    ( { model | communityTopics = Ready page }, Cmd.none, { flash = NoFlash, sessionProblem = Nothing } )
 
                 Err problem ->
-                    ( { model | communityTopics = Failed problem }, sessionProblem problem )
+                    ( { model | communityTopics = Failed problem }
+                    , Cmd.none
+                    , { flash = NoFlash
+                      , sessionProblem =
+                            if problem.status == 401 then
+                                Just problem
+
+                            else
+                                Nothing
+                      }
+                    )
 
 
 load : Route.Route -> Url -> Model -> ( Model, Cmd Msg )
@@ -91,6 +177,8 @@ load route url model =
 type alias Config msg =
     { retry : msg
     , postCard : Domain.Post -> Html msg
+    , toggleFollow : Bool -> msg
+    , reportCommunity : String -> msg
     }
 
 
@@ -98,6 +186,9 @@ type alias ViewModel =
     { communities : Remote (Domain.Page Domain.Community)
     , community : Remote Domain.Community
     , communityTopics : Remote (Domain.Page Domain.Post)
+    , busy : Set String
+    , problem : Maybe Api.Problem
+    , auth : AuthState
     , url : Url
     }
 
@@ -167,7 +258,31 @@ pageCommunity config model active id =
 
                               else
                                 text ""
+                            , followControl config model active community
+                            , if canReport model.auth then
+                                button
+                                    [ A.type_ "button"
+                                    , A.class "outlined-button"
+                                    , Events.onClick (config.reportCommunity community.id)
+                                    ]
+                                    [ text (Translations.reportCommunity active.texts) ]
+
+                              else
+                                text ""
                             ]
+                        , p [ A.class "metadata" ]
+                            [ text (Translations.followPolicy active.texts ++ ": ")
+                            , text (followPolicyLabel active.texts community.followPolicy)
+                            , text " · "
+                            , text (Translations.followers active.texts ++ ": ")
+                            , text (String.fromInt community.followerCount)
+                            ]
+                        , case model.problem of
+                            Just problem ->
+                                p [ A.class "field-error", A.attribute "role" "alert" ] [ text (problemText active.texts problem) ]
+
+                            Nothing ->
+                                text ""
                         ]
                 )
             , h2 [] [ text (Translations.latestTitle active.texts) ]
@@ -186,3 +301,56 @@ pageCommunity config model active id =
                 )
             ]
         )
+
+
+canReport : AuthState -> Bool
+canReport auth =
+    case auth of
+        Authenticated _ ->
+            True
+
+        _ ->
+            False
+
+
+followControl : Config msg -> ViewModel -> Active -> Domain.Community -> Html msg
+followControl config model active community =
+    if community.followState == "pending" then
+        span [ A.class "chip" ] [ text (Translations.followPending active.texts) ]
+
+    else if community.following then
+        button
+            [ A.type_ "button"
+            , A.class "outlined-button"
+            , A.disabled (Set.member "follow" model.busy)
+            , Events.onClick (config.toggleFollow True)
+            ]
+            [ text (Translations.unfollow active.texts) ]
+
+    else if community.canFollow then
+        button
+            [ A.type_ "button"
+            , A.class "filled-button"
+            , A.disabled (Set.member "follow" model.busy)
+            , Events.onClick (config.toggleFollow False)
+            ]
+            [ text (Translations.follow active.texts) ]
+
+    else
+        span [ A.class "chip" ] [ text (followPolicyLabel active.texts community.followPolicy) ]
+
+
+followPolicyLabel : Translations.I18n -> String -> String
+followPolicyLabel texts policy =
+    case policy of
+        "members" ->
+            Translations.followPolicyMembers texts
+
+        "approval" ->
+            Translations.followPolicyApproval texts
+
+        "disabled" ->
+            Translations.followPolicyDisabled texts
+
+        _ ->
+            Translations.followPolicyOpen texts

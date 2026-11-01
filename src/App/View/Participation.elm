@@ -1,7 +1,7 @@
 module App.View.Participation exposing (pageManage, pageNewCommunity, pageNotifications)
 
 import App.Context exposing (Active)
-import App.State exposing (Model, Msg(..))
+import App.State exposing (ConfirmationAction(..), Model, Msg(..))
 import Feature.CommunityCreate as CommunityCreate
 import Feature.CommunityManage.State exposing (ManagePostAction(..))
 import Feature.CommunityManage.Update as Manage
@@ -19,6 +19,7 @@ pageManage model active id =
         , manageContextChanged = ManageMessage << Manage.ManageContextChanged
         , manageReadChanged = ManageMessage << Manage.ManageReadChanged
         , managePostPolicyChanged = ManageMessage << Manage.ManagePostPolicyChanged
+        , manageFollowPolicyChanged = ManageMessage << Manage.ManageFollowPolicyChanged
         , manageApplyPolicy = ManageMessage Manage.ManageApplyPolicy
         , manageAddMember = ManageMessage Manage.ManageAddMember
         , manageRemoveMember = ManageMessage << Manage.ManageRemoveMember
@@ -28,7 +29,21 @@ pageManage model active id =
         , manageNextMembers = ManageMessage Manage.ManageNextMembers
         , managePreviousManagers = ManageMessage Manage.ManagePreviousManagers
         , manageNextManagers = ManageMessage Manage.ManageNextManagers
+        , managePreviousFollowRequests = ManageMessage Manage.ManagePreviousFollowRequests
+        , manageNextFollowRequests = ManageMessage Manage.ManageNextFollowRequests
+        , managePreviousReports = ManageMessage Manage.ManagePreviousReports
+        , manageNextReports = ManageMessage Manage.ManageNextReports
+        , managePreviousModlog = ManageMessage Manage.ManagePreviousModlog
+        , manageNextModlog = ManageMessage Manage.ManageNextModlog
         , managePostAction = \postId action -> ManageMessage (Manage.ManagePostAction postId action)
+        , manageFollowDecision = \actor stateValue -> ManageMessage (Manage.ManageFollowDecision actor stateValue)
+        , manageReportNoteChanged = \reportId value -> ManageMessage (Manage.ManageReportNoteChanged reportId value)
+        , manageConfirmResolveReport = \reportId stateValue -> OpenConfirmation (ResolveReportDialog reportId stateValue)
+        , manageBanActorChanged = ManageMessage << Manage.ManageBanActorChanged
+        , manageBanReasonChanged = ManageMessage << Manage.ManageBanReasonChanged
+        , manageBanExpiresChanged = ManageMessage << Manage.ManageBanExpiresChanged
+        , manageCreateBan = ManageMessage Manage.ManageCreateBan
+        , manageConfirmRemoveBan = OpenConfirmation RemoveCommunityBanDialog
         }
         { auth = model.auth, manage = model.management.manage }
         active

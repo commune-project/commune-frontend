@@ -7,12 +7,13 @@ import App.Session exposing (AuthState(..))
 import Domain
 import File exposing (File)
 import Generated.I18n as Translations
-import Html exposing (Html, bdi, button, div, form, h2, img, input, label, p, section, text, textarea)
+import Html exposing (Html, a, bdi, button, div, form, h2, img, input, label, p, section, text, textarea)
 import Html.Attributes as A
 import Html.Events as Events
 import Json.Decode as Decode
 import Json.Encode as Encode
 import Remote exposing (Remote(..))
+import Route
 import Ui.Feedback exposing (loginRequired, viewFormProblem, viewRemote)
 import Ui.Layout exposing (pageHeading)
 import Ui.Rich
@@ -227,6 +228,7 @@ type alias Config msg =
     , profileClearAvatar : msg
     , profileSave : msg
     , avatarFileSelected : Maybe File -> msg
+    , reportPerson : String -> msg
     }
 
 
@@ -241,7 +243,26 @@ type alias ViewModel =
 pagePublicProfile : Config msg -> ViewModel -> Active -> String -> Html msg
 pagePublicProfile config model active username =
     pageHeading (Translations.profileTitle active.texts)
-        (viewRemote config.retry active.texts model.publicProfile (profileCard active))
+        (viewRemote config.retry
+            active.texts
+            model.publicProfile
+            (\profile ->
+                div [ A.class "stack" ]
+                    [ profileCard active profile
+                    , case model.auth of
+                        Authenticated _ ->
+                            button
+                                [ A.type_ "button"
+                                , A.class "outlined-button"
+                                , Events.onClick (config.reportPerson profile.actor)
+                                ]
+                                [ text (Translations.reportPerson active.texts) ]
+
+                        _ ->
+                            text ""
+                    ]
+            )
+        )
 
 
 profileCard : Active -> Domain.Profile -> Html msg
@@ -303,6 +324,7 @@ pageSettings config model active =
                     , viewFormProblem active.texts model.profileForm.problem
                     , button [ A.type_ "submit", A.class "filled-button", A.disabled (model.profileForm.saving || model.profileForm.uploading) ]
                         [ text (Translations.saveProfile active.texts) ]
+                    , a [ A.href (Route.path Route.PasswordSettings) ] [ text (Translations.changePasswordTitle active.texts) ]
                     ]
 
             _ ->

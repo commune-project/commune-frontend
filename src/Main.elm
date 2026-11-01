@@ -3,19 +3,22 @@ module Main exposing (main)
 import Api
 import App.Access exposing (authProblem)
 import App.Browser exposing (receiveIncoming)
-import App.Features exposing (updateAuth, updateCommunity, updateCommunityCreate, updateEditor, updateFeed, updateManage, updateNotifications, updatePost, updateProfile, updateSearch)
+import App.Features exposing (updateAccountBlocks, updateAccountContent, updateAuth, updateCommunity, updateCommunityCreate, updateEditor, updateFeed, updateManage, updateNotifications, updatePost, updateProfile, updateReport, updateSearch, updateSiteAdmin)
 import App.Feedback exposing (Flash(..))
 import App.Init exposing (init)
 import App.Localization exposing (beginStartup, resolveCatalog, selectLocale)
 import App.Routing exposing (loadRoute, unreadCommand)
 import App.Session exposing (AuthState(..))
-import App.State exposing (Model, Msg(..))
+import App.State exposing (ConfirmationAction(..), Model, Msg(..))
 import App.View exposing (view)
 import Browser
 import Browser.Navigation as Navigation
 import Domain
+import Feature.AccountBlocks as AccountBlocks
 import Feature.Auth.Update as Auth
+import Feature.CommunityManage.Update as Manage
 import Feature.Post as Post
+import Feature.SiteAdmin.Update as SiteAdmin
 import Json.Decode as Decode
 import Locale exposing (Locale(..))
 import Ports exposing (closeDialog, focus, incoming, openDialog)
@@ -159,22 +162,35 @@ update message model =
             ( { model | drawerOpen = False }, Cmd.none )
 
         OpenDeleteDialog id ->
-            ( { model | dialog = Just id }, openDialog "confirmation-dialog" )
+            ( { model | dialog = Just (DeletePostDialog id) }, openDialog "confirmation-dialog" )
+
+        OpenConfirmation action ->
+            ( { model | dialog = Just action }, openDialog "confirmation-dialog" )
 
         CloseDialog ->
             ( { model | dialog = Nothing }
             , Cmd.batch
                 [ closeDialog "confirmation-dialog"
-                , focus (deleteTriggerId (Maybe.withDefault "" model.dialog))
+                , case model.dialog of
+                    Just action ->
+                        focus (confirmationTriggerId action)
+
+                    Nothing ->
+                        Cmd.none
                 ]
             )
 
-        ConfirmDelete id ->
-            let
-                ( changed, command ) =
-                    updatePost (Post.ConfirmDelete id) { model | dialog = Nothing, flash = NoFlash }
-            in
-            ( changed, Cmd.batch [ command, closeDialog "confirmation-dialog" ] )
+        ConfirmDialog ->
+            case model.dialog of
+                Just action ->
+                    let
+                        ( changed, command ) =
+                            confirmAction action { model | dialog = Nothing, flash = NoFlash }
+                    in
+                    ( changed, Cmd.batch [ command, closeDialog "confirmation-dialog", focus "main-heading" ] )
+
+                Nothing ->
+                    ( model, Cmd.none )
 
         Noop ->
             ( model, Cmd.none )
@@ -195,6 +211,46 @@ update message model =
         ManageResponse epoch event ->
             if epoch == model.routeEpoch then
                 updateManage event model
+
+            else
+                ( model, Cmd.none )
+
+        AccountContentMessage event ->
+            updateAccountContent event model
+
+        AccountContentResponse epoch event ->
+            if epoch == model.routeEpoch then
+                updateAccountContent event model
+
+            else
+                ( model, Cmd.none )
+
+        AccountBlocksMessage event ->
+            updateAccountBlocks event model
+
+        AccountBlocksResponse epoch event ->
+            if epoch == model.routeEpoch then
+                updateAccountBlocks event model
+
+            else
+                ( model, Cmd.none )
+
+        ReportMessage event ->
+            updateReport event model
+
+        ReportResponse epoch event ->
+            if epoch == model.routeEpoch then
+                updateReport event model
+
+            else
+                ( model, Cmd.none )
+
+        SiteAdminMessage event ->
+            updateSiteAdmin event model
+
+        SiteAdminResponse epoch event ->
+            if epoch == model.routeEpoch then
+                updateSiteAdmin event model
 
             else
                 ( model, Cmd.none )
@@ -266,6 +322,9 @@ update message model =
             else
                 ( model, Cmd.none )
 
+        CommunityMessage event ->
+            updateCommunity event model
+
         CommunityResponse epoch event ->
             if epoch == model.routeEpoch then
                 updateCommunity event model
@@ -290,3 +349,49 @@ loadDrawerProfile model =
 
         _ ->
             Cmd.none
+
+
+confirmAction : ConfirmationAction -> Model -> ( Model, Cmd Msg )
+confirmAction action model =
+    case action of
+        DeletePostDialog id ->
+            updatePost (Post.ConfirmDelete id) model
+
+        ResolveReportDialog id stateValue ->
+            case model.route of
+                Route.AdminReports ->
+                    updateSiteAdmin (SiteAdmin.ResolveReport id stateValue) model
+
+                Route.Manage _ ->
+                    updateManage (Manage.ManageResolveReport id stateValue) model
+
+                _ ->
+                    ( model, Cmd.none )
+
+        RemoveSiteBanDialog ->
+            updateSiteAdmin SiteAdmin.RemoveBan model
+
+        RemoveCommunityBanDialog ->
+            updateManage Manage.ManageRemoveBan model
+
+        RemoveBlockDialog kind target ->
+            updateAccountBlocks (AccountBlocks.RemoveBlock kind target) model
+
+
+confirmationTriggerId : ConfirmationAction -> String
+confirmationTriggerId action =
+    case action of
+        DeletePostDialog id ->
+            deleteTriggerId id
+
+        ResolveReportDialog id _ ->
+            "resolve-report-" ++ id
+
+        RemoveSiteBanDialog ->
+            "site-ban-remove"
+
+        RemoveCommunityBanDialog ->
+            "community-ban-remove"
+
+        RemoveBlockDialog kind target ->
+            "block-remove-" ++ kind ++ "-" ++ target

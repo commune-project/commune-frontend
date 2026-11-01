@@ -1,4 +1,4 @@
-module Domain exposing (Attachment, Author, Community, Identity, MediaUpload, Notice, NotificationPage, Page, Post, Profile, Roster, Source, community, identity, media, notice, notificationPage, page, post, profile, roster, source)
+module Domain exposing (AccountBlock, AccountContentSource(..), Attachment, Author, Community, FollowRequest, Identity, MediaUpload, ModerationLogEntry, Notice, NotificationPage, Page, Post, Profile, Report, Roster, Source, ThreadedPost(..), VoteSettings, accountBlock, accountContentSource, community, followRequest, identity, media, moderationLogEntry, notice, notificationPage, page, post, profile, report, roster, source, threadedPost, voteSettings)
 
 import Dict
 import Json.Decode as D exposing (Decoder)
@@ -9,7 +9,13 @@ type alias Page a =
 
 
 type alias Identity =
-    { username : String, actor : String, siteAdmin : Bool, deploymentAdmin : Bool }
+    { username : String
+    , actor : String
+    , siteId : String
+    , accountId : String
+    , siteAdmin : Bool
+    , deploymentAdmin : Bool
+    }
 
 
 type alias Community =
@@ -20,10 +26,15 @@ type alias Community =
     , mode : String
     , readPolicy : String
     , postPolicy : String
+    , followPolicy : String
+    , followerCount : Int
     , host : String
     , member : Bool
     , creator : Bool
     , manager : Bool
+    , following : Bool
+    , followState : String
+    , canFollow : Bool
     , canPost : Bool
     , canManage : Bool
     , canMembers : Bool
@@ -53,16 +64,37 @@ type alias Post =
     , format : String
     , likes : Int
     , liked : Bool
+    , score : Int
+    , upvotes : Int
+    , downvotes : Int
+    , votedByMe : Int
+    , saved : Bool
+    , read : Bool
+    , hiddenByMe : Bool
     , replies : Int
     , deleted : Bool
     , canEdit : Bool
     , canDelete : Bool
     , canLike : Bool
+    , canVote : Bool
+    , canUpvote : Bool
+    , canDownvote : Bool
     , canReply : Bool
     , canHide : Bool
+    , canSave : Bool
+    , canHideForMe : Bool
     , canModerate : Bool
     , attachments : List Attachment
     }
+
+
+type ThreadedPost
+    = ThreadedPost
+        { post : Post
+        , children : List ThreadedPost
+        , depth : Int
+        , childCount : Int
+        }
 
 
 type alias Source =
@@ -78,7 +110,15 @@ type alias Roster =
 
 
 type alias Notice =
-    { id : String, kind : String, post : String, actor : String, date : String, read : Bool }
+    { id : String
+    , kind : String
+    , post : String
+    , targetKind : String
+    , targetId : String
+    , actor : String
+    , date : String
+    , read : Bool
+    }
 
 
 type alias NotificationPage =
@@ -98,6 +138,52 @@ type alias MediaUpload =
     , reference : String
     , preview : String
     }
+
+
+type alias VoteSettings =
+    { upvotesEnabled : Bool, downvotesEnabled : Bool }
+
+
+type alias Report =
+    { id : String
+    , targetKind : String
+    , targetId : String
+    , communityId : String
+    , reason : String
+    , state : String
+    , resolutionNote : String
+    , createdAt : String
+    }
+
+
+type alias ModerationLogEntry =
+    { id : String
+    , communityId : String
+    , action : String
+    , actorActorUri : String
+    , targetKind : String
+    , targetId : String
+    , reason : String
+    , createdAt : String
+    }
+
+
+type alias AccountBlock =
+    { kind : String
+    , target : String
+    , createdAt : String
+    }
+
+
+type alias FollowRequest =
+    { actor : String, updatedAt : String }
+
+
+type AccountContentSource
+    = SavedContent
+    | ReadContent
+    | HiddenContent
+    | LikedContent
 
 
 and : Decoder a -> Decoder (a -> b) -> Decoder b
@@ -131,11 +217,13 @@ page item =
 
 identity : Decoder Identity
 identity =
-    D.map4 Identity
-        (D.field "username" D.string)
-        (D.field "actor_uri" D.string)
-        (D.at [ "roles", "site_administrator" ] D.bool)
-        (D.at [ "roles", "deployment_superadministrator" ] D.bool)
+    D.succeed Identity
+        |> and (D.field "username" D.string)
+        |> and (D.field "actor_uri" D.string)
+        |> and (optional "site_id" D.string "")
+        |> and (optional "account_id" identifier "")
+        |> and (D.at [ "roles", "site_administrator" ] D.bool)
+        |> and (D.at [ "roles", "deployment_superadministrator" ] D.bool)
 
 
 community : Decoder Community
@@ -148,10 +236,15 @@ community =
         |> and (D.field "federation_mode" D.string)
         |> and (D.field "read_policy" D.string)
         |> and (D.field "post_policy" D.string)
+        |> and (optional "follow_policy" D.string "open")
+        |> and (optional "follower_count" D.int 0)
         |> and (D.field "host_site_id" D.string)
         |> and (D.at [ "viewer", "is_member" ] D.bool)
         |> and (D.at [ "viewer", "is_creator" ] D.bool)
         |> and (D.at [ "viewer", "is_manager" ] D.bool)
+        |> and (D.oneOf [ D.at [ "viewer", "is_following" ] D.bool, D.succeed False ])
+        |> and (D.oneOf [ D.at [ "viewer", "follow_state" ] D.string, D.succeed "none" ])
+        |> and (D.oneOf [ D.at [ "viewer", "can_follow" ] D.bool, D.succeed False ])
         |> and (D.at [ "permissions", "can_post" ] D.bool)
         |> and (D.at [ "permissions", "can_manage" ] D.bool)
         |> and (D.at [ "permissions", "can_manage_members" ] D.bool)
@@ -174,15 +267,48 @@ post =
         |> and (D.field "content_format" D.string)
         |> and (D.field "like_count" D.int)
         |> and (D.field "liked_by_me" D.bool)
+        |> and (optional "score" D.int 0)
+        |> and (optional "upvotes" D.int 0)
+        |> and (optional "downvotes" D.int 0)
+        |> and (optional "voted_by_me" D.int 0)
+        |> and (optional "saved_by_me" D.bool False)
+        |> and (optional "read_by_me" D.bool False)
+        |> and (optional "hidden_by_me" D.bool False)
         |> and (D.field "reply_count" D.int)
         |> and (D.field "deleted" D.bool)
         |> and (D.at [ "permissions", "can_edit" ] D.bool)
         |> and (D.at [ "permissions", "can_delete" ] D.bool)
         |> and (D.at [ "permissions", "can_like" ] D.bool)
+        |> and (D.oneOf [ D.at [ "permissions", "can_vote" ] D.bool, D.succeed False ])
+        |> and (D.oneOf [ D.at [ "permissions", "can_upvote" ] D.bool, D.succeed False ])
+        |> and (D.oneOf [ D.at [ "permissions", "can_downvote" ] D.bool, D.succeed False ])
         |> and (D.at [ "permissions", "can_reply" ] D.bool)
         |> and (D.at [ "permissions", "can_hide" ] D.bool)
+        |> and (D.oneOf [ D.at [ "permissions", "can_save" ] D.bool, D.succeed False ])
+        |> and (D.oneOf [ D.at [ "permissions", "can_hide_for_me" ] D.bool, D.succeed False ])
         |> and (D.at [ "permissions", "can_moderate" ] D.bool)
         |> and (D.field "attachments" (D.list attachment))
+
+
+threadedPost : Decoder ThreadedPost
+threadedPost =
+    D.map4
+        (\postValue children depth childCount ->
+            ThreadedPost
+                { post = postValue
+                , children = children
+                , depth = depth
+                , childCount = childCount
+                }
+        )
+        post
+        (D.oneOf
+            [ D.field "children" (D.lazy (\_ -> D.list threadedPost))
+            , D.succeed []
+            ]
+        )
+        (optional "depth" D.int 1)
+        (optional "child_count" D.int 0)
 
 
 revision : Decoder String
@@ -235,7 +361,15 @@ roster =
 
 notice : Decoder Notice
 notice =
-    D.map6 Notice (D.field "id" identifier) (D.field "kind" D.string) (D.field "post_id" D.string) (D.field "actor_uri" D.string) (D.field "created_at" D.string) (D.field "read" D.bool)
+    D.succeed Notice
+        |> and (D.field "id" identifier)
+        |> and (D.field "kind" D.string)
+        |> and (optional "post_id" D.string "")
+        |> and (optional "target_kind" D.string "post")
+        |> and (optional "target_id" identifier "")
+        |> and (D.field "actor_uri" D.string)
+        |> and (D.field "created_at" D.string)
+        |> and (D.field "read" D.bool)
 
 
 identifier : Decoder String
@@ -267,3 +401,70 @@ media =
 size : Decoder String
 size =
     D.oneOf [ D.string, D.int |> D.map String.fromInt ]
+
+
+voteSettings : Decoder VoteSettings
+voteSettings =
+    D.map2 VoteSettings
+        (D.field "upvotes_enabled" D.bool)
+        (D.field "downvotes_enabled" D.bool)
+
+
+report : Decoder Report
+report =
+    D.map8 Report
+        (D.field "id" identifier)
+        (D.field "target_kind" D.string)
+        (D.field "target_id" D.string)
+        (optional "community_id" D.string "")
+        (D.field "reason" D.string)
+        (D.field "state" D.string)
+        (optional "resolution_note" D.string "")
+        (D.field "created_at" D.string)
+
+
+moderationLogEntry : Decoder ModerationLogEntry
+moderationLogEntry =
+    D.map8 ModerationLogEntry
+        (D.field "id" identifier)
+        (optional "community_id" D.string "")
+        (D.field "action" D.string)
+        (D.field "actor_actor_uri" D.string)
+        (D.field "target_kind" D.string)
+        (D.field "target_id" D.string)
+        (optional "reason" D.string "")
+        (D.field "created_at" D.string)
+
+
+accountBlock : Decoder AccountBlock
+accountBlock =
+    D.map3 AccountBlock
+        (D.field "kind" D.string)
+        (D.field "target" D.string)
+        (D.field "created_at" D.string)
+
+
+followRequest : Decoder FollowRequest
+followRequest =
+    D.map2 FollowRequest
+        (D.field "actor_uri" D.string)
+        (D.field "updated_at" D.string)
+
+
+accountContentSource : String -> Maybe AccountContentSource
+accountContentSource value =
+    case value of
+        "saved" ->
+            Just SavedContent
+
+        "read" ->
+            Just ReadContent
+
+        "hidden" ->
+            Just HiddenContent
+
+        "liked" ->
+            Just LikedContent
+
+        _ ->
+            Nothing

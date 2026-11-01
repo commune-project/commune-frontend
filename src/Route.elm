@@ -1,5 +1,6 @@
-module Route exposing (Route(..), offset, pageUrl, parse, path, query)
+module Route exposing (Route(..), offset, pageUrl, parse, path, query, replyPageUrl)
 
+import Domain
 import Url exposing (Url)
 import Url.Builder as Builder
 import Url.Parser as Parser exposing ((</>), Parser, s, string, top)
@@ -20,6 +21,16 @@ type Route
     | Notifications
     | Profile String
     | Settings
+    | PasswordReset
+    | PasswordResetConfirm
+    | PasswordSettings
+    | AccountContent Domain.AccountContentSource
+    | AccountBlocks
+    | AdminOverview
+    | AdminReports
+    | AdminModlog
+    | AdminBans
+    | AdminSettings
     | Manage String
     | NotFound
 
@@ -40,6 +51,19 @@ parser =
         , Parser.map Verify (s "verify-email")
         , Parser.map Search (s "search")
         , Parser.map Notifications (s "notifications")
+        , Parser.map PasswordReset (s "reset-password")
+        , Parser.map PasswordResetConfirm (s "reset-password" </> s "confirm")
+        , Parser.map PasswordSettings (s "settings" </> s "password")
+        , Parser.map (AccountContent Domain.SavedContent) (s "account" </> s "saved")
+        , Parser.map (AccountContent Domain.ReadContent) (s "account" </> s "read")
+        , Parser.map (AccountContent Domain.HiddenContent) (s "account" </> s "hidden")
+        , Parser.map (AccountContent Domain.LikedContent) (s "account" </> s "liked")
+        , Parser.map AccountBlocks (s "account" </> s "blocks")
+        , Parser.map AdminReports (s "admin" </> s "reports")
+        , Parser.map AdminModlog (s "admin" </> s "modlog")
+        , Parser.map AdminBans (s "admin" </> s "bans")
+        , Parser.map AdminSettings (s "admin" </> s "settings")
+        , Parser.map AdminOverview (s "admin")
         , Parser.map Profile (s "profiles" </> string)
         , Parser.map Settings (s "settings" </> s "profile")
         ]
@@ -95,6 +119,49 @@ path route =
         Settings ->
             "/settings/profile"
 
+        PasswordReset ->
+            "/reset-password"
+
+        PasswordResetConfirm ->
+            "/reset-password/confirm"
+
+        PasswordSettings ->
+            "/settings/password"
+
+        AccountContent source ->
+            "/account/"
+                ++ (case source of
+                        Domain.SavedContent ->
+                            "saved"
+
+                        Domain.ReadContent ->
+                            "read"
+
+                        Domain.HiddenContent ->
+                            "hidden"
+
+                        Domain.LikedContent ->
+                            "liked"
+                   )
+
+        AccountBlocks ->
+            "/account/blocks"
+
+        AdminOverview ->
+            "/admin"
+
+        AdminReports ->
+            "/admin/reports"
+
+        AdminModlog ->
+            "/admin/modlog"
+
+        AdminBans ->
+            "/admin/bans"
+
+        AdminSettings ->
+            "/admin/settings"
+
         Manage id ->
             Builder.absolute [ "communities", id, "manage" ] []
 
@@ -141,3 +208,13 @@ pageUrl url value =
                         []
                    )
             )
+
+
+replyPageUrl : Url -> String -> Int -> Int -> String
+replyPageUrl url sort depth offsetValue =
+    url.path
+        ++ Builder.toQuery
+            [ Builder.int "offset" (max 0 offsetValue)
+            , Builder.string "sort" sort
+            , Builder.int "max_depth" (clamp 1 8 depth)
+            ]

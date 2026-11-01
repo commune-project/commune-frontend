@@ -3,7 +3,11 @@ module App.Routing exposing (loadRoute, loadSession, unreadCommand)
 import Api
 import App.Session exposing (AuthState(..))
 import App.State exposing (Model, Msg(..))
+import Browser.Navigation as Navigation
 import Domain
+import Feature.AccountBlocks as AccountBlocks
+import Feature.AccountContent as AccountContent
+import Feature.Auth.State as AuthState
 import Feature.Community as Community
 import Feature.CommunityCreate as CommunityCreate
 import Feature.CommunityManage.State as ManageState
@@ -14,9 +18,13 @@ import Feature.Feed as Feed
 import Feature.Notifications as Notifications
 import Feature.Post as Post
 import Feature.Profile as Profile
+import Feature.Report as Report
 import Feature.Search as Search
+import Feature.SiteAdmin.State as SiteAdminState
+import Feature.SiteAdmin.Update as SiteAdmin
 import Remote exposing (Remote(..))
 import Route
+import Url exposing (Url)
 
 
 loadRoute : Model -> ( Model, Cmd Msg )
@@ -31,6 +39,10 @@ loadRoute model =
                 , notificationsPage = Notifications.initial
                 , editorPage = EditorState.initial
                 , management = ManageState.reset model.management
+                , accountContent = AccountContent.reset model.accountContent
+                , accountBlocks = AccountBlocks.reset model.accountBlocks
+                , report = Report.initial
+                , siteAdmin = SiteAdminState.reset model.siteAdmin
             }
 
         epoch =
@@ -106,6 +118,77 @@ loadRoute model =
                 _ ->
                     ( reset, Cmd.none )
 
+        Route.PasswordReset ->
+            ( reset, Cmd.none )
+
+        Route.PasswordResetConfirm ->
+            let
+                token =
+                    model.url.fragment |> Maybe.withDefault ""
+
+                withToken =
+                    if String.isEmpty token then
+                        reset
+
+                    else
+                        { reset | account = AuthState.withResetToken token reset.account }
+
+                clean =
+                    model.url
+
+                cleanUrl =
+                    Url.toString { clean | fragment = Nothing }
+            in
+            ( withToken
+            , if String.isEmpty token then
+                Cmd.none
+
+              else
+                Navigation.replaceUrl model.key cleanUrl
+            )
+
+        Route.PasswordSettings ->
+            ( reset, Cmd.none )
+
+        Route.AccountContent source ->
+            case model.auth of
+                Authenticated _ ->
+                    let
+                        ( state, command ) =
+                            AccountContent.load source model.url reset.accountContent
+                    in
+                    ( { reset | accountContent = state }, Cmd.map (AccountContentResponse epoch) command )
+
+                _ ->
+                    ( reset, Cmd.none )
+
+        Route.AccountBlocks ->
+            case model.auth of
+                Authenticated _ ->
+                    let
+                        ( state, command ) =
+                            AccountBlocks.load reset.accountBlocks
+                    in
+                    ( { reset | accountBlocks = state }, Cmd.map (AccountBlocksResponse epoch) command )
+
+                _ ->
+                    ( reset, Cmd.none )
+
+        Route.AdminOverview ->
+            adminRoute model reset Route.AdminOverview
+
+        Route.AdminSettings ->
+            adminRoute model reset Route.AdminSettings
+
+        Route.AdminReports ->
+            adminRoute model reset Route.AdminReports
+
+        Route.AdminModlog ->
+            adminRoute model reset Route.AdminModlog
+
+        Route.AdminBans ->
+            adminRoute model reset Route.AdminBans
+
         Route.Manage id ->
             case model.auth of
                 Authenticated _ ->
@@ -115,7 +198,14 @@ loadRoute model =
                                 empty =
                                     ManageState.emptyManage
                             in
-                            { empty | community = Loading, members = Loading, managers = Loading }
+                            { empty
+                                | community = Loading
+                                , members = Loading
+                                , managers = Loading
+                                , followRequests = Loading
+                                , reports = Loading
+                                , modlog = Loading
+                            }
 
                         ( state, command ) =
                             Manage.load id initial reset.management
@@ -124,6 +214,38 @@ loadRoute model =
 
                 _ ->
                     ( reset, Cmd.none )
+
+        _ ->
+            ( reset, Cmd.none )
+
+
+adminRoute : Model -> Model -> Route.Route -> ( Model, Cmd Msg )
+adminRoute original reset route =
+    case original.auth of
+        Authenticated identity ->
+            if identity.siteAdmin || identity.deploymentAdmin then
+                let
+                    ( state, command ) =
+                        case route of
+                            Route.AdminSettings ->
+                                SiteAdmin.loadSettings reset.siteAdmin
+
+                            Route.AdminReports ->
+                                SiteAdmin.loadReports original.url reset.siteAdmin
+
+                            Route.AdminModlog ->
+                                SiteAdmin.loadModlog original.url reset.siteAdmin
+
+                            Route.AdminBans ->
+                                SiteAdmin.loadBans reset.siteAdmin
+
+                            _ ->
+                                ( reset.siteAdmin, Cmd.none )
+                in
+                ( { reset | siteAdmin = state }, Cmd.map (SiteAdminResponse original.routeEpoch) command )
+
+            else
+                ( reset, Cmd.none )
 
         _ ->
             ( reset, Cmd.none )

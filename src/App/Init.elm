@@ -6,6 +6,8 @@ import App.Routing exposing (loadSession)
 import App.Session exposing (AuthState(..))
 import App.State exposing (Model, Msg(..))
 import Browser.Navigation as Navigation
+import Feature.AccountBlocks as AccountBlocks
+import Feature.AccountContent as AccountContent
 import Feature.Auth.State
 import Feature.Auth.Update as Auth
 import Feature.Community as Community
@@ -17,7 +19,9 @@ import Feature.Feed as Feed
 import Feature.Notifications as Notifications
 import Feature.Post as Post
 import Feature.Profile as Profile
+import Feature.Report as Report
 import Feature.Search as Search
+import Feature.SiteAdmin.State as SiteAdminState
 import Json.Decode as Decode
 import Locale exposing (Locale(..))
 import Localization exposing (LoadKind(..))
@@ -76,6 +80,10 @@ init rawFlags url key =
             , editorPage = Feature.Editor.State.initial
             , communityCreate = CommunityCreate.initial
             , management = Feature.CommunityManage.State.initial
+            , accountContent = AccountContent.initial
+            , accountBlocks = AccountBlocks.initial
+            , report = Report.initial
+            , siteAdmin = SiteAdminState.initial
             }
     in
     ( model, Cmd.batch [ loadCatalog request, loadSession model, requestCsrf ] )

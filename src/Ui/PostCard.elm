@@ -17,6 +17,11 @@ type alias Config msg =
     , isBusy : String -> Bool
     , isExpanded : String -> Bool
     , onLike : String -> Bool -> msg
+    , onDownvote : String -> Int -> msg
+    , onSave : String -> Bool -> msg
+    , onHideForMe : String -> Bool -> msg
+    , onReport : String -> String -> msg
+    , canReport : Bool
     , onDelete : String -> msg
     , onReplies : String -> msg
     , nested : String -> Html msg
@@ -51,6 +56,30 @@ postCard config texts post =
 
         replyName =
             repliesLabel config.formatted texts post.replies
+
+        downvoteName =
+            (if post.votedByMe == -1 then
+                Translations.clearVote texts
+
+             else
+                Translations.downvote texts
+            )
+                ++ " · "
+                ++ Translations.downvote texts
+
+        saveName =
+            if post.saved then
+                Translations.unsavePost texts
+
+            else
+                Translations.savePost texts
+
+        hideName =
+            if post.hiddenByMe then
+                Translations.unhideForMe texts
+
+            else
+                Translations.hideForMe texts
     in
     article [ A.class "card post-card", A.attribute "aria-labelledby" ("post-" ++ post.id) ]
         [ h2 [ A.id ("post-" ++ post.id), A.dir "auto" ]
@@ -83,6 +112,62 @@ postCard config texts post =
                 [ Ui.Icon.view (Ui.Icon.Like post.liked)
                 , span [ A.class "action-count" ] [ text (formattedCount config.formatted post.likes) ]
                 ]
+            , button
+                [ A.class "icon-button"
+                , A.attribute "aria-label" downvoteName
+                , A.attribute "title" downvoteName
+                , A.attribute "aria-pressed" (boolText (post.votedByMe == -1))
+                , A.disabled (not (post.canDownvote || post.votedByMe == -1) || config.isBusy post.id)
+                , Events.onClick
+                    (config.onDownvote post.id
+                        (if post.votedByMe == -1 then
+                            0
+
+                         else
+                            -1
+                        )
+                    )
+                ]
+                [ Ui.Icon.view (Ui.Icon.ThumbDown (post.votedByMe == -1))
+                , span [ A.class "action-count" ] [ text (formattedCount config.formatted post.score) ]
+                ]
+            , if post.canSave || post.saved then
+                button
+                    [ A.class "icon-button"
+                    , A.attribute "aria-label" saveName
+                    , A.attribute "title" saveName
+                    , A.attribute "aria-pressed" (boolText post.saved)
+                    , A.disabled (config.isBusy post.id)
+                    , Events.onClick (config.onSave post.id post.saved)
+                    ]
+                    [ Ui.Icon.view (Ui.Icon.Bookmark post.saved) ]
+
+              else
+                text ""
+            , if post.canHideForMe || post.hiddenByMe then
+                button
+                    [ A.class "icon-button"
+                    , A.attribute "aria-label" hideName
+                    , A.attribute "title" hideName
+                    , A.attribute "aria-pressed" (boolText post.hiddenByMe)
+                    , A.disabled (config.isBusy post.id)
+                    , Events.onClick (config.onHideForMe post.id post.hiddenByMe)
+                    ]
+                    [ Ui.Icon.view (Ui.Icon.Hide post.hiddenByMe) ]
+
+              else
+                text ""
+            , if config.canReport && not post.deleted then
+                button
+                    [ A.class "icon-button"
+                    , A.attribute "aria-label" (Translations.reportPost texts)
+                    , A.attribute "title" (Translations.reportPost texts)
+                    , Events.onClick (config.onReport post.id post.community)
+                    ]
+                    [ Ui.Icon.view Ui.Icon.Report ]
+
+              else
+                text ""
             , if post.canEdit then
                 a
                     [ A.class "icon-button"

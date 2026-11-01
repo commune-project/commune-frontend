@@ -26,17 +26,23 @@ Remote reads and mutation responses carry the current route epoch. Main discards
 | Feature | Owned state and behavior |
 | --- | --- |
 | `Feature.Auth` | Login/register/verification forms, verification token, authentication requests and outcomes. |
+| `Feature.AccountContent` | Saved, read, hidden, and liked post collections. |
+| `Feature.AccountBlocks` | Account-scoped person, community, and instance block management. |
 | `Feature.Editor` | Topic/reply/edit modes, drafts, exact source versions, attachments, uploads, saves, and conflict recovery. |
-| `Feature.CommunityManage` | Policies, roster offsets, management permissions and requests, moderation fields, and busy actions. |
+| `Feature.CommunityManage` | Community policies, rosters, follow requests, scoped reports and history, bans, moderation fields, and busy actions. |
 | `Feature.Profile` | Public/own profile reads, settings form, avatar keep/clear/replace states, uploads and saving. |
+| `Feature.Report` | Shared post, community, and person report target, validation, submission, and accessible dialog state. |
 | `Feature.Search` | URL-backed search kind/query, result variants, loading, submission and pagination. |
+| `Feature.SiteAdmin` | Current-site vote settings, report review, moderation history, site bans, and role-gated route state. |
 | `Feature.Notifications` | Notification snapshot, unread count, read actions and snapshot cursor. |
-| `Feature.Post` | Post/direct/nested reads, expanded replies, likes, deletion and mutation state. |
+| `Feature.Post` | Post detail, recursive reply trees, votes, likes, save/read/hide state, deletion, reply ordering, and mutation state. |
 | `Feature.Feed` | Latest topic page and offset-based loading. |
 | `Feature.Community` | Community discovery/details/topics and permission-aware presentation. |
 | `Feature.CommunityCreate` | Creation form, policy normalization and creation outcome. |
 
-Auth, Editor, and CommunityManage separate State, Update, and View within their directories. Smaller features stay in single modules. Each owns its local Model/Msg; updates return local state and commands plus semantic outcomes when needed. View configs use callbacks and presentation data. Post receives the reply editor as `Html msg`; the application supplies it from Editor, avoiding a Post/Editor dependency cycle.
+Auth, Editor, CommunityManage, and SiteAdmin separate State, Update, and View within their directories. Smaller features stay in single modules. Each owns its local Model/Msg; updates return local state and commands plus semantic outcomes when needed. View configs use callbacks and presentation data. Post receives the reply editor as `Html msg`; the application supplies it from Editor, avoiding a Post/Editor dependency cycle.
+
+Site administration is explicitly current-site scoped. The client does not expose deployment-wide site, account, role, or cross-site moderation navigation until the backend provides those contracts and a cross-site session model.
 
 ## State lifecycle and response boundaries
 

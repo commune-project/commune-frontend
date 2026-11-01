@@ -75,3 +75,11 @@ Evidence collected on 2026-10-25 with Chromium supplied by `/usr/bin/chromium`:
 - 200% text at 1280 pixels and 100% text at 320 pixels keep focus clear of the sticky bar.
 
 Compact navigation correction: the compact rule `.desktop-nav { display: none }` was dead because `.top-bar nav { display: flex }` is more specific, so 320-pixel pages rendered both the drawer trigger and the full navigation. The selector now reads `.top-bar nav.desktop-nav`, and the width test asserts that compact pages expose navigation through the dialog rather than the bar. Re-measured with Chromium after the correction: bar height is 130 CSS pixels at 320×800, 321 at 320 pixels with 200% text, 74 at 1280×800, and 326 at 1280 pixels with 200% text. The focused page heading (top 146 / 353 / 106 / 390) clears the bar in every combination (bottom 130 / 321 / 74 / 326), and no page-level horizontal overflow appears.
+
+## Forum management expansion, 2026-11-01
+
+- `ELM_HOME=/tmp/commune-elm-home npm test` passed 16 JavaScript tests and 31 Elm tests.
+- `npm run test:browser` passed 53 Playwright tests and skipped the real-backend test because external HTTPS and PostgreSQL credentials were not supplied.
+- Automated axe scans covered the account collections, personal blocks, password routes, community management, and all current-site administration routes at 1280, 768, and 320 CSS pixels with no reported WCAG 2.2 A/AA violations.
+- `npm run format:check`, `npm run i18n:check`, `ELM_HOME=/tmp/commune-elm-home npm run compile`, and `ELM_HOME=/tmp/commune-elm-home npm run build` passed.
+- The real-backend acceptance workflow was attempted through the full Playwright run but remained skipped; no live backend behavior is claimed from that skipped test.

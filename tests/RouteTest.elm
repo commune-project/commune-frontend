@@ -1,5 +1,6 @@
 module RouteTest exposing (suite)
 
+import Domain
 import Expect
 import Route
 import Test exposing (Test, describe, test)
@@ -42,4 +43,63 @@ suite =
                     |> Maybe.map (\url -> Route.pageUrl url 40 == "/search?offset=40&q=news&kind=communities")
                     |> Maybe.withDefault False
                     |> Expect.equal True
+        , test "parses account, password, and administration routes" <|
+            \_ ->
+                Expect.equal
+                    [ Route.AccountContent Domain.SavedContent
+                    , Route.AccountContent Domain.ReadContent
+                    , Route.AccountContent Domain.HiddenContent
+                    , Route.AccountContent Domain.LikedContent
+                    , Route.AccountBlocks
+                    , Route.PasswordReset
+                    , Route.PasswordResetConfirm
+                    , Route.PasswordSettings
+                    , Route.AdminOverview
+                    , Route.AdminReports
+                    , Route.AdminModlog
+                    , Route.AdminBans
+                    , Route.AdminSettings
+                    ]
+                    (List.map parse
+                        [ "/account/saved"
+                        , "/account/read"
+                        , "/account/hidden"
+                        , "/account/liked"
+                        , "/account/blocks"
+                        , "/reset-password"
+                        , "/reset-password/confirm"
+                        , "/settings/password"
+                        , "/admin"
+                        , "/admin/reports"
+                        , "/admin/modlog"
+                        , "/admin/bans"
+                        , "/admin/settings"
+                        ]
+                    )
+        , test "round trips new route paths" <|
+            \_ ->
+                let
+                    routes =
+                        [ Route.AccountContent Domain.SavedContent
+                        , Route.AccountContent Domain.ReadContent
+                        , Route.AccountContent Domain.HiddenContent
+                        , Route.AccountContent Domain.LikedContent
+                        , Route.AccountBlocks
+                        , Route.PasswordReset
+                        , Route.PasswordResetConfirm
+                        , Route.PasswordSettings
+                        , Route.AdminOverview
+                        , Route.AdminReports
+                        , Route.AdminModlog
+                        , Route.AdminBans
+                        , Route.AdminSettings
+                        ]
+                in
+                Expect.equal routes (List.map (Route.path >> parse) routes)
+        , test "builds reply sort and depth URLs" <|
+            \_ ->
+                Url.fromString "https://forum.test/posts/p1?offset=20"
+                    |> Maybe.map (\url -> Route.replyPageUrl url "top" 4 40)
+                    |> Maybe.withDefault ""
+                    |> Expect.equal "/posts/p1?offset=40&sort=top&max_depth=4"
         ]

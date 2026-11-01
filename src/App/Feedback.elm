@@ -14,6 +14,8 @@ type Flash
     | FlashLoggedOut
     | FlashVerificationSuccess
     | FlashRegistrationAccepted
+    | FlashResetRequested
+    | FlashPasswordChanged
     | FlashUploaded
     | FlashUploadFailed
 
@@ -41,6 +43,12 @@ flashText texts flash =
 
         FlashRegistrationAccepted ->
             Translations.registrationAccepted texts
+
+        FlashResetRequested ->
+            Translations.resetRequested texts
+
+        FlashPasswordChanged ->
+            Translations.passwordChanged texts
 
         FlashUploaded ->
             Translations.uploadComplete texts

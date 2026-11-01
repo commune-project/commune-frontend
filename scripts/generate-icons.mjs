@@ -21,6 +21,14 @@ const icons = [
   ['language', 'outlined/language.svg'],
   ['menu', 'outlined/menu.svg'],
   ['close', 'outlined/close.svg'],
+  ['thumbUp', 'outlined/thumb_up.svg'],
+  ['thumbDown', 'outlined/thumb_down.svg'],
+  ['bookmark', 'outlined/bookmark.svg'],
+  ['bookmarkBorder', 'outlined/bookmark_border.svg'],
+  ['visibilityOff', 'outlined/visibility_off.svg'],
+  ['visibility', 'outlined/visibility.svg'],
+  ['flag', 'outlined/flag.svg'],
+  ['block', 'outlined/block.svg'],
 ];
 
 const entries = icons.map(([name, file]) => {

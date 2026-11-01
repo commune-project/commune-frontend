@@ -1,10 +1,11 @@
-module App.View.Account exposing (pageLogin, pagePublicProfile, pageRegister, pageSettings, pageVerify)
+module App.View.Account exposing (pageLogin, pagePasswordReset, pagePasswordResetConfirm, pagePasswordSettings, pagePublicProfile, pageRegister, pageSettings, pageVerify)
 
 import App.Context exposing (Active)
 import App.State exposing (Model, Msg(..))
 import Feature.Auth.Update as Auth
 import Feature.Auth.View
 import Feature.Profile as Profile
+import Feature.Report as Report
 import Html exposing (Html)
 
 
@@ -23,6 +24,21 @@ pageVerify model active =
     Feature.Auth.View.pageVerify (authViewConfig model) model.auth model.account active
 
 
+pagePasswordReset : Model -> Active -> Html Msg
+pagePasswordReset model active =
+    Feature.Auth.View.pagePasswordReset (authViewConfig model) model.auth model.account active
+
+
+pagePasswordResetConfirm : Model -> Active -> Html Msg
+pagePasswordResetConfirm model active =
+    Feature.Auth.View.pagePasswordResetConfirm (authViewConfig model) model.auth model.account active
+
+
+pagePasswordSettings : Model -> Active -> Html Msg
+pagePasswordSettings model active =
+    Feature.Auth.View.pagePasswordSettings (authViewConfig model) model.auth model.account active
+
+
 authViewConfig : Model -> Feature.Auth.View.Config Msg
 authViewConfig model =
     { retry = RetryPage
@@ -36,6 +52,13 @@ authViewConfig model =
     , resendSubmitted = AuthMessage Auth.ResendSubmitted
     , verifyPasswordChanged = AuthMessage << Auth.VerifyPasswordChanged
     , verifySubmitted = AuthMessage Auth.VerifySubmitted
+    , resetEmailChanged = AuthMessage << Auth.ResetEmailChanged
+    , resetRequested = AuthMessage Auth.ResetRequested
+    , resetNewPasswordChanged = AuthMessage << Auth.ResetNewPasswordChanged
+    , resetSubmitted = AuthMessage Auth.ResetSubmitted
+    , changeCurrentPasswordChanged = AuthMessage << Auth.ChangeCurrentPasswordChanged
+    , changeNewPasswordChanged = AuthMessage << Auth.ChangeNewPasswordChanged
+    , changePasswordSubmitted = AuthMessage Auth.ChangePasswordSubmitted
     }
 
 
@@ -57,4 +80,5 @@ profileViewConfig model =
     , profileClearAvatar = ProfileMessage Profile.ProfileClearAvatar
     , profileSave = ProfileMessage Profile.ProfileSave
     , avatarFileSelected = ProfileMessage << Profile.AvatarFileSelected
+    , reportPerson = \actor -> ReportMessage (Report.Open (Report.PersonTarget actor))
     }

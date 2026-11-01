@@ -19,6 +19,13 @@ type Msg
     | ResendSubmitted
     | VerifyPasswordChanged String
     | VerifySubmitted
+    | ResetEmailChanged String
+    | ResetRequested
+    | ResetNewPasswordChanged String
+    | ResetSubmitted
+    | ChangeCurrentPasswordChanged String
+    | ChangeNewPasswordChanged String
+    | ChangePasswordSubmitted
 
 
 type Action
@@ -27,12 +34,16 @@ type Action
     | RegisterAction
     | ResendAction
     | VerifyAction
+    | ResetRequestAction
+    | ResetConfirmAction
+    | ChangePasswordAction
 
 
 type alias Outcome =
     { flash : Flash
     , identity : Maybe Domain.Identity
     , loggedOut : Bool
+    , navigation : Maybe String
     }
 
 
@@ -50,9 +61,21 @@ type alias Working =
     , verifyProblem : Maybe Api.Problem
     , verifyBusy : Bool
     , verified : Bool
+    , resetEmail : String
+    , resetProblem : Maybe Api.Problem
+    , resetAccepted : Bool
+    , resetToken : String
+    , resetNewPassword : String
+    , resetBusy : Bool
+    , resetComplete : Bool
+    , changeCurrentPassword : String
+    , changeNewPassword : String
+    , changeProblem : Maybe Api.Problem
+    , changeBusy : Bool
     , flash : Flash
     , identity : Maybe Domain.Identity
     , loggedOut : Bool
+    , navigation : Maybe String
     }
 
 
@@ -88,14 +111,50 @@ update csrf message state =
                 , verifyProblem = state.verifyProblem
                 , verifyBusy = state.verifyBusy
                 , verified = state.verified
+                , resetEmail = state.resetEmail
+                , resetProblem = state.resetProblem
+                , resetAccepted = state.resetAccepted
+                , resetToken = state.resetToken
+                , resetNewPassword = state.resetNewPassword
+                , resetBusy = state.resetBusy
+                , resetComplete = state.resetComplete
+                , changeCurrentPassword = state.changeCurrentPassword
+                , changeNewPassword = state.changeNewPassword
+                , changeProblem = state.changeProblem
+                , changeBusy = state.changeBusy
                 , flash = NoFlash
                 , identity = Nothing
                 , loggedOut = False
+                , navigation = Nothing
                 }
     in
-    ( { verificationToken = next.verificationToken, loginIdentifier = next.loginIdentifier, loginPassword = next.loginPassword, loginProblem = next.loginProblem, loginBusy = next.loginBusy, registerUsername = next.registerUsername, registerEmail = next.registerEmail, registerProblem = next.registerProblem, registerBusy = next.registerBusy, verifyPassword = next.verifyPassword, verifyProblem = next.verifyProblem, verifyBusy = next.verifyBusy, verified = next.verified }
+    ( { verificationToken = next.verificationToken
+      , loginIdentifier = next.loginIdentifier
+      , loginPassword = next.loginPassword
+      , loginProblem = next.loginProblem
+      , loginBusy = next.loginBusy
+      , registerUsername = next.registerUsername
+      , registerEmail = next.registerEmail
+      , registerProblem = next.registerProblem
+      , registerBusy = next.registerBusy
+      , verifyPassword = next.verifyPassword
+      , verifyProblem = next.verifyProblem
+      , verifyBusy = next.verifyBusy
+      , verified = next.verified
+      , resetEmail = next.resetEmail
+      , resetProblem = next.resetProblem
+      , resetAccepted = next.resetAccepted
+      , resetToken = next.resetToken
+      , resetNewPassword = next.resetNewPassword
+      , resetBusy = next.resetBusy
+      , resetComplete = next.resetComplete
+      , changeCurrentPassword = next.changeCurrentPassword
+      , changeNewPassword = next.changeNewPassword
+      , changeProblem = next.changeProblem
+      , changeBusy = next.changeBusy
+      }
     , command
-    , { flash = next.flash, identity = next.identity, loggedOut = next.loggedOut }
+    , { flash = next.flash, identity = next.identity, loggedOut = next.loggedOut, navigation = next.navigation }
     )
 
 
@@ -186,6 +245,69 @@ updateWorking csrf message model =
                     (ActionDone VerifyAction)
                 )
 
+        ResetEmailChanged value ->
+            ( { model | resetEmail = value, resetProblem = Nothing, resetAccepted = False }, Cmd.none )
+
+        ResetRequested ->
+            if model.resetBusy || String.isEmpty (String.trim model.resetEmail) then
+                ( model, Cmd.none )
+
+            else
+                ( { model | resetBusy = True, resetProblem = Nothing, resetAccepted = False }
+                , Api.send ""
+                    "POST"
+                    "/api/v1/auth/password/reset"
+                    (Encode.encode 0 (Encode.object [ ( "email", Encode.string (String.trim model.resetEmail) ) ]))
+                    (ActionDone ResetRequestAction)
+                )
+
+        ResetNewPasswordChanged value ->
+            ( { model | resetNewPassword = value, resetProblem = Nothing }, Cmd.none )
+
+        ResetSubmitted ->
+            if model.resetBusy || String.isEmpty model.resetToken then
+                ( model, Cmd.none )
+
+            else
+                ( { model | resetBusy = True, resetProblem = Nothing }
+                , Api.send ""
+                    "POST"
+                    "/api/v1/auth/password/reset/confirm"
+                    (Encode.encode 0
+                        (Encode.object
+                            [ ( "token", Encode.string model.resetToken )
+                            , ( "password", Encode.string model.resetNewPassword )
+                            ]
+                        )
+                    )
+                    (ActionDone ResetConfirmAction)
+                )
+
+        ChangeCurrentPasswordChanged value ->
+            ( { model | changeCurrentPassword = value, changeProblem = Nothing }, Cmd.none )
+
+        ChangeNewPasswordChanged value ->
+            ( { model | changeNewPassword = value, changeProblem = Nothing }, Cmd.none )
+
+        ChangePasswordSubmitted ->
+            if model.changeBusy then
+                ( model, Cmd.none )
+
+            else
+                ( { model | changeBusy = True, changeProblem = Nothing }
+                , Api.send csrf
+                    "POST"
+                    "/api/v1/auth/password/change"
+                    (Encode.encode 0
+                        (Encode.object
+                            [ ( "current_password", Encode.string model.changeCurrentPassword )
+                            , ( "new_password", Encode.string model.changeNewPassword )
+                            ]
+                        )
+                    )
+                    (ActionDone ChangePasswordAction)
+                )
+
         ActionDone action response ->
             case action of
                 LoginAction ->
@@ -227,3 +349,44 @@ updateWorking csrf message model =
 
                         Err problem ->
                             ( { model | verifyBusy = False, verifyProblem = Just problem }, Cmd.none )
+
+                ResetRequestAction ->
+                    case Api.decodeUnit response of
+                        Ok () ->
+                            ( { model | resetBusy = False, resetAccepted = True, resetProblem = Nothing, flash = FlashResetRequested }, Cmd.none )
+
+                        Err problem ->
+                            ( { model | resetBusy = False, resetProblem = Just problem, flash = FlashProblem problem }, Cmd.none )
+
+                ResetConfirmAction ->
+                    case Api.decodeUnit response of
+                        Ok () ->
+                            ( { model
+                                | resetBusy = False
+                                , resetToken = ""
+                                , resetNewPassword = ""
+                                , resetComplete = True
+                                , resetProblem = Nothing
+                                , navigation = Just "/login"
+                              }
+                            , Cmd.none
+                            )
+
+                        Err problem ->
+                            ( { model | resetBusy = False, resetProblem = Just problem, flash = FlashProblem problem }, Cmd.none )
+
+                ChangePasswordAction ->
+                    case Api.decodeUnit response of
+                        Ok () ->
+                            ( { model
+                                | changeBusy = False
+                                , changeCurrentPassword = ""
+                                , changeNewPassword = ""
+                                , changeProblem = Nothing
+                                , flash = FlashPasswordChanged
+                              }
+                            , Cmd.none
+                            )
+
+                        Err problem ->
+                            ( { model | changeBusy = False, changeProblem = Just problem, flash = FlashProblem problem }, Cmd.none )

@@ -3,7 +3,8 @@ module App.Shell exposing (viewBoot, viewReady)
 import App.Context exposing (Active)
 import App.Feedback exposing (Flash(..), flashText)
 import App.Session exposing (AuthState(..))
-import App.State exposing (Model, Msg(..))
+import App.State exposing (ConfirmationAction(..), Model, Msg(..))
+import Domain
 import Feature.Auth.Update as Auth
 import Generated.I18n as Translations
 import Html exposing (Html, a, bdi, button, div, h1, h2, header, img, label, main_, nav, option, p, section, select, span, text)
@@ -45,8 +46,8 @@ bootFailure model =
         ]
 
 
-viewReady : Html Msg -> Model -> Active -> Html Msg
-viewReady content model active =
+viewReady : Html Msg -> Html Msg -> Model -> Active -> Html Msg
+viewReady content reportDialog model active =
     div [ A.class "app-shell" ]
         [ viewTopBar model active
         , div
@@ -79,6 +80,7 @@ viewReady content model active =
           else
             viewModalDrawer model active
         , viewConfirmation model active
+        , reportDialog
         ]
 
 
@@ -154,6 +156,7 @@ drawerContent model active extras =
                 ]
                 (drawerLinks model active extras
                     ++ [ div [ A.class "drawer-divider", A.attribute "role" "separator" ] [] ]
+                    ++ drawerManagement model active extras
                     ++ drawerAccount model active extras
                 )
            , div [ A.class "drawer-footer" ]
@@ -316,6 +319,8 @@ drawerAccount model active extras =
     case model.auth of
         Authenticated account ->
             [ drawerLink model active (Route.Profile account.username) Icon.Person (Translations.navProfile texts) extras
+            , drawerLink model active (Route.AccountContent Domain.SavedContent) (Icon.Bookmark False) (Translations.navMyContent texts) extras
+            , drawerLink model active Route.AccountBlocks Icon.Block (Translations.navBlocks texts) extras
             , drawerLink model active Route.Settings Icon.Settings (Translations.navSettings texts) extras
             , button
                 ((A.class "drawer-item drawer-action" :: extras)
@@ -330,6 +335,20 @@ drawerAccount model active extras =
             [ drawerLink model active Route.Login Icon.Login (Translations.navLogin texts) extras ]
 
 
+drawerManagement : Model -> Active -> List (Html.Attribute Msg) -> List (Html Msg)
+drawerManagement model active extras =
+    case model.auth of
+        Authenticated identity ->
+            if identity.siteAdmin || identity.deploymentAdmin then
+                [ drawerLink model active Route.AdminOverview Icon.Admin (Translations.navAdmin active.texts) extras ]
+
+            else
+                []
+
+        _ ->
+            []
+
+
 currentAttributes : Model -> Route.Route -> List (Html.Attribute Msg)
 currentAttributes model target =
     if model.route == target then
@@ -342,7 +361,7 @@ currentAttributes model target =
 viewConfirmation : Model -> Active -> Html Msg
 viewConfirmation model active =
     case model.dialog of
-        Just postId ->
+        Just action ->
             Html.node "dialog"
                 [ A.id "confirmation-dialog"
                 , A.class "confirmation"
@@ -350,16 +369,66 @@ viewConfirmation model active =
                 , Events.on "close" (Decode.succeed CloseDialog)
                 , Events.on "cancel" (Decode.succeed CloseDialog)
                 ]
-                [ h2 [ A.id "confirmation-title" ] [ text (Translations.confirmDeleteTitle active.texts) ]
-                , p [] [ text (Translations.confirmDeleteHelp active.texts) ]
+                [ h2 [ A.id "confirmation-title" ] [ text (confirmationTitle active action) ]
+                , p [] [ text (confirmationHelp active action) ]
                 , div [ A.class "dialog-actions" ]
                     [ button [ A.class "text-button", Events.onClick CloseDialog ] [ text (Translations.cancel active.texts) ]
-                    , button [ A.class "danger-button", Events.onClick (ConfirmDelete postId) ] [ text (Translations.deletePost active.texts) ]
+                    , button
+                        [ A.class "danger-button"
+                        , Events.onClick ConfirmDialog
+                        ]
+                        [ text
+                            (case action of
+                                DeletePostDialog _ ->
+                                    Translations.deletePost active.texts
+
+                                _ ->
+                                    Translations.confirm active.texts
+                            )
+                        ]
                     ]
                 ]
 
         Nothing ->
             text ""
+
+
+confirmationTitle : Active -> ConfirmationAction -> String
+confirmationTitle active action =
+    case action of
+        DeletePostDialog _ ->
+            Translations.confirmDeleteTitle active.texts
+
+        ResolveReportDialog _ _ ->
+            Translations.reportResolution active.texts
+
+        RemoveSiteBanDialog ->
+            Translations.banTitle active.texts
+
+        RemoveCommunityBanDialog ->
+            Translations.communityBanTitle active.texts
+
+        RemoveBlockDialog _ _ ->
+            Translations.blockTitle active.texts
+
+
+confirmationHelp : Active -> ConfirmationAction -> String
+confirmationHelp active action =
+    case action of
+        DeletePostDialog _ ->
+            Translations.confirmDeleteHelp active.texts
+
+        ResolveReportDialog _ _ ->
+            Translations.confirmReportHelp active.texts
+
+        RemoveSiteBanDialog ->
+            Translations.confirmBanHelp active.texts
+
+        RemoveCommunityBanDialog ->
+            Translations.confirmBanHelp active.texts
+
+        RemoveBlockDialog _ _ ->
+            Translations.confirmBlockHelp active.texts
 
 
 viewFlash : Model -> Active -> Html Msg

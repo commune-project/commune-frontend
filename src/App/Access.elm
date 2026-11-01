@@ -4,9 +4,13 @@ import Api
 import App.Feedback exposing (Flash(..))
 import App.Session exposing (AuthState(..))
 import App.State exposing (Model)
+import Feature.AccountBlocks as AccountBlocks
+import Feature.AccountContent as AccountContent
 import Feature.CommunityManage.State as ManageState
 import Feature.Notifications as Notifications
 import Feature.Profile as Profile
+import Feature.Report as Report
+import Feature.SiteAdmin.State as SiteAdminState
 import Remote exposing (Remote(..))
 import Set exposing (Set)
 
@@ -28,5 +32,9 @@ clearPrivate model =
         , drawerProfile = NotAsked
         , notificationsPage = Notifications.initial
         , management = ManageState.initial
+        , accountContent = AccountContent.initial
+        , accountBlocks = AccountBlocks.initial
+        , report = Report.initial
+        , siteAdmin = SiteAdminState.initial
         , posts = (\postsState -> { postsState | busy = Set.empty }) model.posts
     }

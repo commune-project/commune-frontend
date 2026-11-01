@@ -10,8 +10,9 @@ function fixtures() {
   const community = {
     id: 'c1', name: 'news', title: 'News', description: 'Daily news',
     federation_mode: 'federated', read_policy: 'eligible_users', post_policy: 'members',
+    follow_policy: 'open', follower_count: 4,
     host_site_id: 'a',
-    viewer: { is_member: true, is_creator: true, is_manager: true, management_scope: 'community' },
+    viewer: { is_member: true, is_creator: true, is_manager: true, management_scope: 'community', is_following: true, follow_state: 'accepted', can_follow: false },
     permissions: { can_post: true, can_manage: true, can_manage_members: true, can_manage_managers: true }
   };
   const topic = {
@@ -19,8 +20,10 @@ function fixtures() {
     body_html: '<p>Hello <strong>world</strong></p><p dir="auto">مرحبا — नमस्ते — สวัสดี — 你好 — é — 👩‍💻</p>', author_actor_uri: identity.actor_uri,
     author: { acct: 'alice@forum.test', display_name: 'Alice' },
     authored_at: '2026-10-20T08:30:00Z', version: 4, content_format: 'markdown',
-    like_count: 2, liked_by_me: false, reply_count: 1, deleted: false,
-    permissions: { can_edit: true, can_delete: true, can_like: true, can_reply: true, can_hide: true, can_moderate: true },
+    like_count: 2, liked_by_me: false, score: 2, upvotes: 2, downvotes: 0, voted_by_me: 0,
+    saved_by_me: false, read_by_me: false, hidden_by_me: false,
+    reply_count: 1, deleted: false,
+    permissions: { can_edit: true, can_delete: true, can_like: true, can_vote: true, can_upvote: true, can_downvote: true, can_reply: true, can_hide: true, can_save: true, can_hide_for_me: true, can_moderate: true },
     attachments: [{ url: '/api/v1/media/file1', media_type: 'application/pdf', name: 'notes.pdf' }]
   };
   const reply = {
@@ -29,11 +32,15 @@ function fixtures() {
     permissions: { ...topic.permissions, can_edit: false, can_delete: false }
   };
   const nestedReply = { ...reply, id: 'r1r1', body: 'Nested answer', body_html: '<p>Nested answer</p>', parent_id: 'r1', reply_count: 0 };
+  const replyThread = { ...reply, depth: 1, child_count: 1, children: [nestedReply] };
   return {
     signedIn: false,
     posts: { p1: topic },
-    replies: { p1: [reply], r1: [nestedReply] },
+    replies: { p1: [replyThread], r1: [nestedReply] },
     communities: [community],
+    reports: [{ id: 'report1', target_kind: 'post', target_id: 'p1', reason: 'spam', state: 'open', resolution_note: '', created_at: '2026-10-20T08:30:00Z' }],
+    modlog: [{ id: 'log1', action: 'ban-site', actor_actor_uri: identity.actor_uri, target_kind: 'person', target_id: 'https://forum.test/users/bob', reason: 'spam', created_at: '2026-10-20T08:30:00Z' }],
+    blocks: [],
     calls: [],
     likes: new Map(),
     conflictOnce: false,
@@ -51,7 +58,7 @@ function pageOf(items, limit = 20, offset = 0) {
   return { items, limit, offset };
 }
 
-async function mockApi(page, state, { authenticated = false } = {}) {
+async function mockApi(page, state, { authenticated = false, identity: responseIdentity = identity } = {}) {
   state.signedIn = authenticated;
   await page.route('**/api/v1/**', async route => {
     const request = route.request();
@@ -63,12 +70,12 @@ async function mockApi(page, state, { authenticated = false } = {}) {
     state.calls.push({ method, path, search: url.search, body });
 
     if (path === '/api/v1/auth/session') {
-      return state.signedIn ? json(route, 200, identity) : json(route, 401, { error: 'unauthenticated' });
+      return state.signedIn ? json(route, 200, responseIdentity) : json(route, 401, { error: 'unauthenticated' });
     }
     if (path === '/api/v1/auth/login' && method === 'POST') {
       if (state.loginStatus !== 200) return json(route, state.loginStatus, { error: 'invalid credentials' });
       state.signedIn = true;
-      return json(route, 200, identity);
+      return json(route, 200, responseIdentity);
     }
     if (path === '/api/v1/auth/logout') {
       state.signedIn = false;
@@ -95,6 +102,52 @@ async function mockApi(page, state, { authenticated = false } = {}) {
     }
     if (path === '/api/v1/notifications/1/read' || path === '/api/v1/notifications/read-all') {
       return route.fulfill({ status: 204 });
+    }
+    if (path === '/api/v1/auth/password/reset' && method === 'POST') {
+      return route.fulfill({ status: 202 });
+    }
+    if (path === '/api/v1/auth/password/reset/confirm' && method === 'POST') {
+      return route.fulfill({ status: 204 });
+    }
+    if (path === '/api/v1/auth/password/change' && method === 'POST') {
+      return route.fulfill({ status: 204 });
+    }
+    if (path === '/api/v1/site/vote-settings' && method === 'GET') {
+      return json(route, 200, { upvotes_enabled: true, downvotes_enabled: true });
+    }
+    if (path === '/api/v1/admin/vote-settings' && method === 'PUT') {
+      return json(route, 200, { upvotes_enabled: body.upvotes_enabled, downvotes_enabled: body.downvotes_enabled });
+    }
+    if (path === '/api/v1/reports' && method === 'GET') {
+      return json(route, 200, pageOf(state.reports));
+    }
+    if (path === '/api/v1/reports' && method === 'POST') {
+      return route.fulfill({ status: 201 });
+    }
+    if (path.startsWith('/api/v1/reports/') && path.endsWith('/resolve') && method === 'POST') {
+      const id = path.split('/')[4];
+      state.reports = state.reports.map(report => report.id === id ? { ...report, state: body.state, resolution_note: body.note || '' } : report);
+      return route.fulfill({ status: 204 });
+    }
+    if (path === '/api/v1/modlog' && method === 'GET') {
+      return json(route, 200, pageOf(state.modlog));
+    }
+    if (path === '/api/v1/admin/bans' && (method === 'POST' || method === 'DELETE')) {
+      return route.fulfill({ status: 204 });
+    }
+    if (path === '/api/v1/account/blocks' && method === 'GET') {
+      return json(route, 200, { items: state.blocks });
+    }
+    if (path === '/api/v1/account/blocks' && (method === 'POST' || method === 'DELETE')) {
+      if (method === 'POST') {
+        state.blocks.push({ kind: body.kind, target: body.target, created_at: '2026-10-20T08:30:00Z' });
+      } else {
+        state.blocks = state.blocks.filter(block => block.kind !== body.kind || block.target !== body.target);
+      }
+      return route.fulfill({ status: 204 });
+    }
+    if (path.startsWith('/api/v1/account/') && method === 'GET') {
+      return json(route, 200, pageOf(Object.values(state.posts)));
     }
     if (path === '/api/v1/topics') {
       return json(route, 200, pageOf(Object.values(state.posts)));
@@ -139,6 +192,21 @@ async function mockApi(page, state, { authenticated = false } = {}) {
       state.replies['p-new'] = [];
       return json(route, 201, created);
     }
+    if (path === '/api/v1/communities/c1/follow' && (method === 'POST' || method === 'DELETE')) {
+      state.communities[0].viewer.is_following = method === 'POST';
+      state.communities[0].viewer.follow_state = method === 'POST' ? 'accepted' : 'undone';
+      state.communities[0].viewer.can_follow = method !== 'POST';
+      return route.fulfill({ status: 204 });
+    }
+    if (path === '/api/v1/communities/c1/follow-requests' && method === 'GET') {
+      return json(route, 200, pageOf([{ actor_uri: 'https://forum.test/users/bob', updated_at: '2026-10-20T08:30:00Z' }]));
+    }
+    if (path.startsWith('/api/v1/communities/c1/follow-requests/') && method === 'POST') {
+      return route.fulfill({ status: 204 });
+    }
+    if (path === '/api/v1/communities/c1/bans' && (method === 'POST' || method === 'DELETE')) {
+      return route.fulfill({ status: 204 });
+    }
     if (path === '/api/v1/communities/c1/members' && method === 'GET') {
       return json(route, 200, pageOf([{ actor_uri: identity.actor_uri, is_creator: true, is_manager: false }]));
     }
@@ -155,6 +223,46 @@ async function mockApi(page, state, { authenticated = false } = {}) {
       return route.fulfill({ status: 204 });
     }
     if (path.startsWith('/api/v1/posts/') && path.endsWith('/likes')) {
+      const id = path.split('/')[4];
+      const post = state.posts[id];
+      if (post) {
+        post.liked_by_me = method === 'POST';
+        post.voted_by_me = method === 'POST' ? 1 : 0;
+        post.upvotes = Math.max(0, (post.upvotes || 0) + (method === 'POST' ? 1 : -1));
+        post.like_count = post.upvotes;
+        post.score = post.upvotes - (post.downvotes || 0);
+      }
+      return route.fulfill({ status: 204 });
+    }
+    if (path.startsWith('/api/v1/posts/') && path.endsWith('/vote')) {
+      const id = path.split('/')[4];
+      const post = state.posts[id];
+      if (post) {
+        const previous = post.voted_by_me || 0;
+        if (previous === 1) post.upvotes = Math.max(0, post.upvotes - 1);
+        if (previous === -1) post.downvotes = Math.max(0, post.downvotes - 1);
+        if (body.score === 1) post.upvotes += 1;
+        if (body.score === -1) post.downvotes += 1;
+        post.voted_by_me = body.score;
+        post.liked_by_me = body.score === 1;
+        post.like_count = post.upvotes;
+        post.score = post.upvotes - post.downvotes;
+      }
+      return route.fulfill({ status: 204 });
+    }
+    if (path.startsWith('/api/v1/posts/') && path.endsWith('/save')) {
+      const id = path.split('/')[4];
+      if (state.posts[id]) state.posts[id].saved_by_me = method === 'POST';
+      return route.fulfill({ status: 204 });
+    }
+    if (path.startsWith('/api/v1/posts/') && path.endsWith('/read')) {
+      const id = path.split('/')[4];
+      if (state.posts[id]) state.posts[id].read_by_me = true;
+      return route.fulfill({ status: 204 });
+    }
+    if (path.startsWith('/api/v1/posts/') && path.endsWith('/hide-for-me')) {
+      const id = path.split('/')[4];
+      if (state.posts[id]) state.posts[id].hidden_by_me = method === 'POST';
       return route.fulfill({ status: 204 });
     }
     if (path.startsWith('/api/v1/posts/') && path.endsWith('/hide')) {
@@ -234,6 +342,7 @@ test('browse latest, community, discussion, search and profile', async ({ page }
   const replyArticle = page.getByRole('article').filter({ hasText: 'A reply' });
   await replyArticle.getByRole('button', { name: '1 reply' }).click();
   await expect(page.getByText('Nested answer')).toBeVisible();
+  expect(state.calls.some(call => call.path === '/api/v1/posts/r1/replies')).toBe(false);
   await page.goBack();
   await expect(page.getByRole('heading', { level: 1, name: 'News' })).toBeVisible();
   await page.goBack();
@@ -458,7 +567,147 @@ test('likes, deletes with accessible confirmation, and updates profile', async (
   await expect(page.getByText('Changes saved.')).toBeVisible();
 });
 
-test('post action icons keep one row, localized tooltips and focus order', async ({ page }) => {
+test('votes, saves, hides and reports posts through the documented endpoints', async ({ page }) => {
+  const state = fixtures();
+  await mockApi(page, state, { authenticated: true });
+  await open(page, '/posts/p1');
+
+  const topicCard = page.getByRole('article', { name: 'Hello world' });
+  await topicCard.getByRole('button', { name: /^Downvote/ }).click();
+  await expect.poll(() => state.calls.some(call => call.path === '/api/v1/posts/p1/vote' && call.body.score === -1)).toBe(true);
+  await expect(topicCard.getByRole('button', { name: /^Clear vote/ })).toHaveAttribute('aria-pressed', 'true');
+
+  await topicCard.getByRole('button', { name: 'Save post' }).click();
+  await expect(topicCard.getByRole('button', { name: 'Remove from saved' })).toHaveAttribute('aria-pressed', 'true');
+
+  await topicCard.getByRole('button', { name: 'Hide for me' }).click();
+  await expect.poll(() => state.calls.some(call => call.path === '/api/v1/posts/p1/hide-for-me')).toBe(true);
+
+  await topicCard.getByRole('button', { name: 'Report post' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Report content' });
+  await expect(dialog).toBeVisible();
+  await dialog.getByLabel('Reason').fill('spam');
+  await dialog.getByRole('button', { name: 'Submit report' }).click();
+  await expect.poll(() => state.calls.some(call => call.path === '/api/v1/reports' && call.body.target_id === 'p1')).toBe(true);
+  await expect(dialog).toBeHidden();
+});
+
+test('loads threaded replies with URL-backed sort and depth', async ({ page }) => {
+  const state = fixtures();
+  await mockApi(page, state, { authenticated: true });
+  await open(page, '/posts/p1?sort=top&max_depth=2');
+  const replyCall = state.calls.find(call => call.path === '/api/v1/posts/p1/replies');
+  expect(replyCall.search).toContain('sort=top');
+  expect(replyCall.search).toContain('max_depth=2');
+  await page.getByLabel('Reply order').selectOption('new');
+  await expect(page).toHaveURL(/sort=new/);
+  await expect.poll(() => state.calls.some(call => call.path === '/api/v1/posts/p1/replies' && call.search.includes('sort=new'))).toBe(true);
+});
+
+test('follows communities and manages personal blocks and account content', async ({ page }) => {
+  const state = fixtures();
+  await mockApi(page, state, { authenticated: true });
+  await open(page, '/communities/c1');
+  await page.getByRole('button', { name: 'Unfollow' }).click();
+  await expect(page.getByRole('button', { name: 'Follow', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Follow', exact: true }).click();
+  await expect.poll(() => state.calls.some(call => call.path === '/api/v1/communities/c1/follow')).toBe(true);
+
+  await page.goto('/account/saved');
+  await expect(page.getByRole('link', { name: 'Hello world' })).toBeVisible();
+  await page.goto('/account/blocks');
+  await page.getByLabel('Target').fill('https://forum.test/users/bob');
+  await page.getByRole('button', { name: 'Add block' }).click();
+  await expect.poll(() => state.calls.some(call => call.path === '/api/v1/account/blocks' && call.method === 'POST')).toBe(true);
+  await expect(page.getByText('https://forum.test/users/bob')).toBeVisible();
+  await page.getByRole('button', { name: 'Remove block' }).click();
+  await page.getByRole('dialog', { name: 'Personal blocks' }).getByRole('button', { name: 'Confirm' }).click();
+  await expect.poll(() => state.calls.some(call => call.path === '/api/v1/account/blocks' && call.method === 'DELETE')).toBe(true);
+});
+
+test('removes saved and hidden state from account collections', async ({ page }) => {
+  const state = fixtures();
+  state.posts.p1.saved_by_me = true;
+  state.posts.p1.hidden_by_me = true;
+  await mockApi(page, state, { authenticated: true });
+
+  await open(page, '/account/saved');
+  await page.getByRole('button', { name: 'Remove from saved' }).click();
+  await expect.poll(() => state.calls.some(call => call.path === '/api/v1/posts/p1/save' && call.method === 'DELETE')).toBe(true);
+
+  await page.goto('/account/hidden');
+  await page.getByRole('button', { name: 'Unhide for me' }).click();
+  await expect.poll(() => state.calls.some(call => call.path === '/api/v1/posts/p1/hide-for-me' && call.method === 'DELETE')).toBe(true);
+});
+
+test('resets and changes passwords with fragment-token handling', async ({ page }) => {
+  const state = fixtures();
+  await mockApi(page, state, { authenticated: true });
+  await open(page, '/reset-password');
+  await page.getByLabel('Email').fill('alice@example.org');
+  await page.getByRole('button', { name: 'Send reset link' }).click();
+  await expect(page.getByText(/Check your email for the reset link/)).toBeVisible();
+
+  await page.goto('/reset-password/confirm#token=reset-token');
+  await expect(page).toHaveURL(/\/reset-password\/confirm$/);
+  await page.getByLabel('New password').fill('new-password');
+  await page.getByRole('button', { name: 'Set new password' }).click();
+  await expect(page).toHaveURL(/\/login$/);
+
+  await page.goto('/settings/password');
+  await page.getByLabel('Current password').fill('old-password');
+  await page.getByLabel('New password').fill('new-password');
+  await page.getByRole('button', { name: 'Change password' }).click();
+  await expect.poll(() => state.calls.some(call => call.path === '/api/v1/auth/password/change')).toBe(true);
+  await expect(page.getByText('Password changed. Other sessions were revoked.')).toBeVisible();
+});
+
+test('operates the current-site administration center', async ({ page }) => {
+  const state = fixtures();
+  await mockApi(page, state, { authenticated: true });
+  await open(page, '/admin/settings');
+  await page.getByLabel('Downvotes enabled').uncheck();
+  await page.getByRole('button', { name: 'Save changes' }).click();
+  await expect.poll(() => state.calls.some(call => call.path === '/api/v1/admin/vote-settings' && call.body.downvotes_enabled === false)).toBe(true);
+
+  await page.goto('/admin/reports');
+  await page.getByLabel('Resolution note').fill('handled');
+  await page.getByRole('button', { name: 'Resolve', exact: true }).click();
+  await page.getByRole('dialog', { name: 'Report resolution' }).getByRole('button', { name: 'Confirm' }).click();
+  await expect.poll(() => state.calls.some(call => call.path === '/api/v1/reports/report1/resolve')).toBe(true);
+
+  await page.goto('/admin/modlog');
+  await expect(page.getByText('ban-site')).toBeVisible();
+
+  await page.goto('/admin/bans');
+  await page.locator('#ban-actor').fill('https://forum.test/users/bob');
+  await page.locator('#ban-reason').fill('spam');
+  await page.getByRole('button', { name: 'Create ban' }).click();
+  await expect.poll(() => state.calls.some(call => call.path === '/api/v1/admin/bans' && call.method === 'POST')).toBe(true);
+});
+
+test('denies current-site administration to ordinary accounts without management reads', async ({ page }) => {
+  const state = fixtures();
+  const ordinary = { ...identity, roles: { site_administrator: false, deployment_superadministrator: false } };
+  await mockApi(page, state, { authenticated: true, identity: ordinary });
+  await open(page, '/admin');
+  await expect(page.getByText('This action is not allowed, or your access has changed.')).toBeVisible();
+  expect(state.calls.some(call => call.path === '/api/v1/site/vote-settings' || call.path === '/api/v1/reports' || call.path === '/api/v1/modlog')).toBe(false);
+});
+
+test('cancels a management confirmation with Escape and restores focus', async ({ page }) => {
+  const state = fixtures();
+  await mockApi(page, state, { authenticated: true });
+  await open(page, '/admin/bans');
+  const removeBan = page.getByRole('button', { name: 'Remove ban' });
+  await removeBan.click();
+  await expect(page.getByRole('dialog', { name: 'Site ban' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog', { name: 'Site ban' })).toBeHidden();
+  await expect(removeBan).toBeFocused();
+});
+
+test('post action icons stay inside the card with localized tooltips and focus order', async ({ page }) => {
   const state = fixtures();
   state.posts.p1.reply_count = 3;
   await mockApi(page, state, { authenticated: true });
@@ -467,13 +716,18 @@ test('post action icons keep one row, localized tooltips and focus order', async
 
   const card = page.getByRole('article', { name: 'Hello world' });
   const actions = card.locator('.post-actions .icon-button');
-  await expect(actions).toHaveCount(4);
+  await expect(actions).toHaveCount(8);
 
-  const tops = await actions.evaluateAll(nodes => nodes.map(node => Math.round(node.getBoundingClientRect().top)));
-  expect(new Set(tops).size).toBe(1);
-
-  const glyphTops = await actions.locator('svg').evaluateAll(nodes => nodes.map(node => Math.round(node.getBoundingClientRect().top)));
-  expect(new Set(glyphTops).size).toBe(1);
+  const boxes = await actions.evaluateAll(nodes => nodes.map(node => {
+    const box = node.getBoundingClientRect();
+    return { left: box.left, right: box.right, top: box.top, bottom: box.bottom };
+  }));
+  for (let index = 0; index < boxes.length; index += 1) {
+    for (let other = index + 1; other < boxes.length; other += 1) {
+      const overlaps = boxes[index].left < boxes[other].right && boxes[index].right > boxes[other].left && boxes[index].top < boxes[other].bottom && boxes[index].bottom > boxes[other].top;
+      expect(overlaps).toBe(false);
+    }
+  }
 
   const [iconBox, countBox] = await actions.nth(0).evaluate(node => {
     const icon = node.querySelector('svg').getBoundingClientRect();
@@ -487,21 +741,23 @@ test('post action icons keep one row, localized tooltips and focus order', async
   expect(overflow).toBeLessThanOrEqual(0);
 
   await expect(actions.nth(0)).toHaveAttribute('title', 'Like · 2 likes');
-  await expect(actions.nth(1)).toHaveAttribute('title', 'Edit post');
-  await expect(actions.nth(2)).toHaveAttribute('title', 'Delete post');
-  await expect(actions.nth(3)).toHaveAttribute('title', '3 replies');
+  await expect(actions.nth(1)).toHaveAttribute('title', /Downvote/);
+  await expect(actions.nth(2)).toHaveAttribute('title', 'Save post');
+  await expect(actions.nth(3)).toHaveAttribute('title', 'Hide for me');
+  await expect(actions.nth(4)).toHaveAttribute('title', 'Report post');
+  await expect(actions.nth(5)).toHaveAttribute('title', 'Edit post');
+  await expect(actions.nth(6)).toHaveAttribute('title', 'Delete post');
+  await expect(actions.nth(7)).toHaveAttribute('title', '3 replies');
   await expect(actions.nth(0).locator('.action-count')).toHaveText('2');
-  await expect(actions.nth(3).locator('.action-count')).toHaveText('3');
+  await expect(actions.nth(7).locator('.action-count')).toHaveText('3');
   await expect(card.getByRole('button', { name: 'Like · 2 likes' })).toBeVisible();
   await expect(card.getByRole('button', { name: '3 replies' })).toBeVisible();
 
   await actions.nth(0).focus();
-  await page.keyboard.press('Tab');
-  await expect(actions.nth(1)).toBeFocused();
-  await page.keyboard.press('Tab');
-  await expect(actions.nth(2)).toBeFocused();
-  await page.keyboard.press('Tab');
-  await expect(actions.nth(3)).toBeFocused();
+  for (let index = 1; index < 8; index += 1) {
+    await page.keyboard.press('Tab');
+    await expect(actions.nth(index)).toBeFocused();
+  }
 
   await page.emulateMedia({ forcedColors: 'active' });
   const glyphs = await actions.locator('svg').evaluateAll(nodes => nodes.map(node => {
@@ -548,7 +804,7 @@ test('reads notifications and performs community management', async ({ page }) =
 
   await page.goto('/communities/c1/manage');
   await expect(page.getByRole('heading', { name: 'Manage community' })).toBeVisible();
-  await page.getByLabel('Actor URI').fill('https://forum.test/users/bob');
+  await page.locator('#manage-actor').fill('https://forum.test/users/bob');
   await page.getByRole('button', { name: 'Add member' }).click();
   await page.getByRole('button', { name: 'Add manager' }).click();
   await page.getByLabel('Who can read').selectOption('members');
@@ -610,6 +866,26 @@ test('sends each documented management action through its endpoint', async ({ pa
   await expect.poll(() => state.calls.filter(call => call.path.includes('/posts/p1/') || call.path.includes('/removals') || call.path.includes('/submissions') || call.path.includes('/backfill')).length).toBeGreaterThanOrEqual(7);
 });
 
+test('handles community follow requests, reports, history and bans', async ({ page }) => {
+  const state = fixtures();
+  await mockApi(page, state, { authenticated: true });
+  await open(page, '/communities/c1/manage');
+
+  await page.getByRole('button', { name: 'Accept', exact: true }).click();
+  await expect.poll(() => state.calls.some(call => call.path.includes('/follow-requests/'))).toBe(true);
+
+  await page.getByLabel('Resolution note').fill('reviewed');
+  await page.getByRole('button', { name: 'Resolve', exact: true }).click();
+  await page.getByRole('dialog', { name: 'Report resolution' }).getByRole('button', { name: 'Confirm' }).click();
+  await expect.poll(() => state.calls.some(call => call.path === '/api/v1/reports/report1/resolve')).toBe(true);
+
+  await expect(page.getByText('ban-site').first()).toBeVisible();
+  await page.locator('#community-ban-actor').fill('https://forum.test/users/bob');
+  await page.locator('#community-ban-reason').fill('spam');
+  await page.getByRole('button', { name: 'Create ban' }).click();
+  await expect.poll(() => state.calls.some(call => call.path === '/api/v1/communities/c1/bans' && call.method === 'POST')).toBe(true);
+});
+
 test('rich content strips executable markup and keeps safe links', async ({ page }) => {
   const state = fixtures();
   state.posts.p1.body_html = '<p>Safe body</p><script>window.__communePwned=1</script><a href="javascript:alert(1)">bad</a><a href="https://example.test/page">good</a><img src="https://images.example/p.png" alt="Remote image">';
@@ -631,9 +907,19 @@ test('supports enlarged text and WCAG text spacing without overflow', async ({ p
 });
 
 test('community creation, search and management pages have no axe violations', async ({ page }) => {
+  test.setTimeout(120000);
   const state = fixtures();
   await mockApi(page, state, { authenticated: true });
-  const paths = ['/', '/communities', '/communities/c1', '/posts/p1', '/search?kind=posts&q=Hello', '/notifications', '/profiles/alice', '/settings/profile', '/communities/c1/manage', '/communities/new', '/communities/c1/new', '/posts/p1/edit', '/login', '/register'];
+  const paths = [
+    '/', '/communities', '/communities/c1', '/posts/p1',
+    '/search?kind=posts&q=Hello', '/notifications', '/profiles/alice',
+    '/settings/profile', '/settings/password', '/communities/c1/manage',
+    '/communities/new', '/communities/c1/new', '/posts/p1/edit',
+    '/login', '/register', '/reset-password', '/reset-password/confirm',
+    '/account/saved', '/account/read', '/account/hidden', '/account/liked',
+    '/account/blocks', '/admin', '/admin/settings', '/admin/reports',
+    '/admin/modlog', '/admin/bans'
+  ];
   for (const width of [1280, 768, 320]) {
     await page.setViewportSize({ width, height: 800 });
     for (const path of paths) {

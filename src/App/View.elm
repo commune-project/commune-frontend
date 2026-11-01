@@ -2,14 +2,20 @@ module App.View exposing (view)
 
 import App.Context exposing (Active)
 import App.Shell exposing (viewBoot, viewReady)
-import App.State exposing (Model, Msg(..))
-import App.View.Account exposing (pageLogin, pagePublicProfile, pageRegister, pageSettings, pageVerify)
-import App.View.Content exposing (editorConfig, pageCommunities, pageCommunity, pageLatest, pagePost, pageSearch)
+import App.State exposing (ConfirmationAction(..), Model, Msg(..))
+import App.View.Account exposing (pageLogin, pagePasswordReset, pagePasswordResetConfirm, pagePasswordSettings, pagePublicProfile, pageRegister, pageSettings, pageVerify)
+import App.View.Content exposing (editorConfig, pageCommunities, pageCommunity, pageLatest, pagePost, pageSearch, postCard)
 import App.View.Participation exposing (pageManage, pageNewCommunity, pageNotifications)
 import Browser
+import Domain
+import Feature.AccountBlocks as AccountBlocks
+import Feature.AccountContent as AccountContent
 import Feature.Editor.State exposing (EditorMode(..))
 import Feature.Editor.Update as Editor
 import Feature.Editor.View
+import Feature.Report as Report
+import Feature.SiteAdmin.Update as SiteAdmin
+import Feature.SiteAdmin.View as SiteAdminView
 import Generated.I18n as Translations
 import Html exposing (Html, p, text)
 import Remote exposing (Remote(..))
@@ -49,7 +55,7 @@ view model =
                 viewBoot model
 
             Just active ->
-                viewReady (pageView model active) model active
+                viewReady (pageView model active) (reportDialog model active) model active
         ]
     }
 
@@ -117,6 +123,36 @@ routeTitle model active =
         Route.Settings ->
             Translations.settingsTitle texts
 
+        Route.PasswordReset ->
+            Translations.resetPasswordTitle texts
+
+        Route.PasswordResetConfirm ->
+            Translations.resetPasswordTitle texts
+
+        Route.PasswordSettings ->
+            Translations.changePasswordTitle texts
+
+        Route.AccountContent source ->
+            accountContentTitle texts source
+
+        Route.AccountBlocks ->
+            Translations.blockTitle texts
+
+        Route.AdminOverview ->
+            Translations.adminTitle texts
+
+        Route.AdminReports ->
+            Translations.reportsTitle texts
+
+        Route.AdminModlog ->
+            Translations.modlogTitle texts
+
+        Route.AdminBans ->
+            Translations.banTitle texts
+
+        Route.AdminSettings ->
+            Translations.voteSettingsTitle texts
+
         Route.Manage _ ->
             Translations.manageTitle texts
 
@@ -169,9 +205,120 @@ pageView model active =
         Route.Settings ->
             pageSettings model active
 
+        Route.PasswordReset ->
+            pagePasswordReset model active
+
+        Route.PasswordResetConfirm ->
+            pagePasswordResetConfirm model active
+
+        Route.PasswordSettings ->
+            pagePasswordSettings model active
+
+        Route.AccountContent source ->
+            AccountContent.pageAccountContent
+                { retry = RetryPage, postCard = postCard model active }
+                { posts = model.accountContent.posts, auth = model.auth, url = model.url }
+                active
+                source
+
+        Route.AccountBlocks ->
+            AccountBlocks.pageAccountBlocks
+                (accountBlocksConfig model)
+                { blocks = model.accountBlocks.blocks
+                , kind = model.accountBlocks.kind
+                , target = model.accountBlocks.target
+                , busy = model.accountBlocks.busy
+                , problem = model.accountBlocks.problem
+                , auth = model.auth
+                }
+                active
+
+        Route.AdminOverview ->
+            SiteAdminView.pageOverview (siteAdminConfig model) (siteAdminViewModel model) active
+
+        Route.AdminReports ->
+            SiteAdminView.pageReports (siteAdminConfig model) (siteAdminViewModel model) active
+
+        Route.AdminModlog ->
+            SiteAdminView.pageModlog (siteAdminConfig model) (siteAdminViewModel model) active
+
+        Route.AdminBans ->
+            SiteAdminView.pageBans (siteAdminConfig model) (siteAdminViewModel model) active
+
+        Route.AdminSettings ->
+            SiteAdminView.pageSettings (siteAdminConfig model) (siteAdminViewModel model) active
+
         Route.Manage id ->
             pageManage model active id
 
         Route.NotFound ->
             pageHeading (Translations.notFound active.texts)
                 (p [] [ text (Translations.notFound active.texts) ])
+
+
+accountContentTitle : Translations.I18n -> Domain.AccountContentSource -> String
+accountContentTitle texts source =
+    case source of
+        Domain.SavedContent ->
+            Translations.savedPostsTitle texts
+
+        Domain.ReadContent ->
+            Translations.readPostsTitle texts
+
+        Domain.HiddenContent ->
+            Translations.hiddenPostsTitle texts
+
+        Domain.LikedContent ->
+            Translations.likedPostsTitle texts
+
+
+accountBlocksConfig : Model -> AccountBlocks.Config Msg
+accountBlocksConfig model =
+    { retry = RetryPage
+    , kindChanged = AccountBlocksMessage << AccountBlocks.KindChanged
+    , targetChanged = AccountBlocksMessage << AccountBlocks.TargetChanged
+    , addBlock = AccountBlocksMessage AccountBlocks.AddBlock
+    , confirmRemoveBlock = \kind target -> OpenConfirmation (RemoveBlockDialog kind target)
+    , formatted = model.formatted
+    }
+
+
+siteAdminConfig : Model -> SiteAdminView.Config Msg
+siteAdminConfig _ =
+    { retry = RetryPage
+    , upvotesChanged = SiteAdminMessage << SiteAdmin.UpvotesChanged
+    , downvotesChanged = SiteAdminMessage << SiteAdmin.DownvotesChanged
+    , saveSettings = SiteAdminMessage SiteAdmin.SaveSettings
+    , reportStateChanged = SiteAdminMessage << SiteAdmin.ReportStateChanged
+    , reportCommunityChanged = SiteAdminMessage << SiteAdmin.ReportCommunityChanged
+    , applyReportFilter = SiteAdminMessage SiteAdmin.ApplyReportFilter
+    , reportNoteChanged = \id value -> SiteAdminMessage (SiteAdmin.ReportNoteChanged id value)
+    , confirmResolveReport = \id state -> OpenConfirmation (ResolveReportDialog id state)
+    , modlogCommunityChanged = SiteAdminMessage << SiteAdmin.ModlogCommunityChanged
+    , applyModlogFilter = SiteAdminMessage SiteAdmin.ApplyModlogFilter
+    , banActorChanged = SiteAdminMessage << SiteAdmin.BanActorChanged
+    , banReasonChanged = SiteAdminMessage << SiteAdmin.BanReasonChanged
+    , banExpiresChanged = SiteAdminMessage << SiteAdmin.BanExpiresChanged
+    , createBan = SiteAdminMessage SiteAdmin.CreateBan
+    , confirmRemoveBan = OpenConfirmation RemoveSiteBanDialog
+    }
+
+
+siteAdminViewModel : Model -> SiteAdminView.ViewModel
+siteAdminViewModel model =
+    { admin = model.siteAdmin
+    , auth = model.auth
+    , formatted = model.formatted
+    , url = model.url
+    }
+
+
+reportDialog : Model -> Active -> Html Msg
+reportDialog model active =
+    Report.reportDialog
+        { close = ReportMessage Report.Close
+        , reasonChanged = ReportMessage << Report.ReasonChanged
+        , submit = ReportMessage Report.Submit
+        }
+        model.report
+        active

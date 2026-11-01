@@ -1,6 +1,7 @@
 module Feature.CommunityManage.State exposing (..)
 
 import Api
+import Dict exposing (Dict)
 import Domain
 import Remote exposing (Remote(..))
 import Route
@@ -18,6 +19,20 @@ type alias ManageState =
     , contextId : String
     , readPolicy : String
     , postPolicy : String
+    , followPolicy : String
+    , followRequests : Remote (Domain.Page Domain.FollowRequest)
+    , followRequestOffset : Int
+    , reports : Remote (Domain.Page Domain.Report)
+    , reportOffset : Int
+    , reportNotes : Dict String String
+    , reportBusy : Set String
+    , modlog : Remote (Domain.Page Domain.ModerationLogEntry)
+    , modlogOffset : Int
+    , banActor : String
+    , banReason : String
+    , banExpires : String
+    , banBusy : Bool
+    , banProblem : Maybe Api.Problem
     , problem : Maybe Api.Problem
     }
 
@@ -45,6 +60,20 @@ emptyManage =
     , contextId = ""
     , readPolicy = "eligible_users"
     , postPolicy = "eligible_users"
+    , followPolicy = "open"
+    , followRequests = NotAsked
+    , followRequestOffset = 0
+    , reports = NotAsked
+    , reportOffset = 0
+    , reportNotes = Dict.empty
+    , reportBusy = Set.empty
+    , modlog = NotAsked
+    , modlogOffset = 0
+    , banActor = ""
+    , banReason = ""
+    , banExpires = ""
+    , banBusy = False
+    , banProblem = Nothing
     , problem = Nothing
     }
 

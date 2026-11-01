@@ -1,4 +1,4 @@
-module Feature.Auth.State exposing (Model, initial)
+module Feature.Auth.State exposing (Model, initial, withResetToken)
 
 import Api
 
@@ -17,6 +17,17 @@ type alias Model =
     , verifyProblem : Maybe Api.Problem
     , verifyBusy : Bool
     , verified : Bool
+    , resetEmail : String
+    , resetProblem : Maybe Api.Problem
+    , resetAccepted : Bool
+    , resetToken : String
+    , resetNewPassword : String
+    , resetBusy : Bool
+    , resetComplete : Bool
+    , changeCurrentPassword : String
+    , changeNewPassword : String
+    , changeProblem : Maybe Api.Problem
+    , changeBusy : Bool
     }
 
 
@@ -35,4 +46,20 @@ initial token =
     , verifyProblem = Nothing
     , verifyBusy = False
     , verified = False
+    , resetEmail = ""
+    , resetProblem = Nothing
+    , resetAccepted = False
+    , resetToken = ""
+    , resetNewPassword = ""
+    , resetBusy = False
+    , resetComplete = False
+    , changeCurrentPassword = ""
+    , changeNewPassword = ""
+    , changeProblem = Nothing
+    , changeBusy = False
     }
+
+
+withResetToken : String -> Model -> Model
+withResetToken token model =
+    { model | resetToken = token, resetComplete = False }
