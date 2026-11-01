@@ -40,19 +40,29 @@ Decorative accent color SHALL be confined to emphasis that does not carry meanin
 
 ### Requirement: Navigation drawer structure
 
-The navigation drawer SHALL be 360 CSS pixels wide where the viewport allows, SHALL begin below the application bar, and SHALL scroll its own content when that content exceeds the viewport height. It SHALL present, in order: a profile header, the primary destinations Latest, Communities, Search, and Notifications, a separator, the account destinations, and a footer containing the language selector and localization status. The drawer SHALL expose a navigation landmark named by the localized main navigation label.
+The navigation drawer SHALL be 360 CSS pixels wide where the viewport allows, SHALL begin below the application bar, and SHALL scroll its own content when that content exceeds the viewport height. It SHALL present, in order: a profile header, the primary destinations Latest, Communities, Search, and Notifications, a separator, any role-gated current-site management destination, the account destinations, and a footer containing the language selector and localization status. The drawer SHALL expose a navigation landmark named by the localized main navigation label.
 
 Each destination SHALL render as a control at least 48 CSS pixels tall with a decorative icon and a visible localized label. The current destination SHALL show an indicator surface and at least one non-color cue. The notification destination SHALL display the unread count as a trailing badge, and its accessible name SHALL retain the full localized notification phrase including the count, including when the count is zero. When the unread count is zero, the trailing badge SHALL remain visible with a neutral surface treatment and SHALL NOT use the error color.
 
 #### Scenario: Authenticated destinations
 
 - **WHEN** a signed-in reader opens the drawer
-- **THEN** the drawer offers the four primary destinations plus Profile, Settings, and Log out, in that order
+- **THEN** the drawer offers the four primary destinations plus Profile, My content, Blocks, Settings, and Log out, in that order
+
+#### Scenario: Site administrator destinations
+
+- **WHEN** a signed-in site or deployment administrator opens the drawer
+- **THEN** a current-site management destination appears after the primary separator and before account destinations
+
+#### Scenario: Ordinary account destinations
+
+- **WHEN** a signed-in account without administrative roles opens the drawer
+- **THEN** no current-site management destination is rendered
 
 #### Scenario: Anonymous destinations
 
 - **WHEN** an anonymous reader opens the drawer
-- **THEN** the drawer offers the four primary destinations and a Log in destination, and does not offer Profile, Settings, or Log out
+- **THEN** the drawer offers the four primary destinations and a Log in destination, and does not offer Profile, My content, Blocks, Settings, management, or Log out
 
 #### Scenario: Unread notification badge
 
@@ -174,31 +184,61 @@ Acceptance SHALL include automated accessibility scans and manual keyboard and s
 - **THEN** its English report records automated results, manual keyboard and screen-reader outcomes, locale/RTL/IME coverage, and any remaining conformance blockers
 
 ### Requirement: Icon-only post actions
-Post cards SHALL present their like, edit, delete, and reply actions as icon-only controls rather than text links. Each control SHALL provide a target of at least 48 by 48 CSS pixels and SHALL expose the localized action label as its accessible name. Action icons SHALL be decorative and hidden from assistive technology. Pointer users SHALL receive the same localized label as a native tooltip.
+Post cards SHALL present vote, save, personal-hide, edit, delete, report, and reply actions as icon controls or an accessible icon menu rather than ambiguous text buttons. Each control SHALL provide a target of at least 48 by 48 CSS pixels and SHALL expose the localized action label as its accessible name. Action icons SHALL be decorative and hidden from assistive technology. Pointer users SHALL receive the same localized label as a native tooltip.
 
-The like and reply controls SHALL display their localized count as a visible number next to the icon. The accessible name SHALL retain the complete localized count phrase so the number is never announced without its meaning.
+The upvote and downvote controls SHALL expose their current selected state programmatically and SHALL display visible counts or score where the API provides them. Save and personal-hide controls SHALL expose their current toggle state. The accessible names SHALL retain the complete localized count or state phrase so a visible number is never announced without its meaning.
 
-The like control SHALL expose its current state programmatically as a pressed toggle and SHALL distinguish the liked state through icon shape as well as color. The reply control SHALL continue to expose its expanded state.
+The compatibility like control SHALL expose its current state programmatically as a pressed toggle and SHALL distinguish the liked state through icon shape as well as color. The reply control SHALL continue to expose its expanded state.
 
 #### Scenario: Compact action row
 - **WHEN** a reader views a post card at a 320 CSS pixel viewport
-- **THEN** the four actions render as icon controls and remain within the card without page-level horizontal scrolling
+- **THEN** the action controls remain within the card without page-level horizontal scrolling and do not overlap content
 
 #### Scenario: Accessible action names
 - **WHEN** an assistive technology or an automated accessibility query inspects a post card action
-- **THEN** the like control is named by the localized like or unlike label, the edit control by the localized edit label, the delete control by the localized delete label, and the reply control by the full localized reply count phrase, while the icon itself is absent from the accessibility tree
+- **THEN** every action is named by its localized purpose, and decorative icons are absent from the accessibility tree
 
 #### Scenario: Counts beside icons
-- **WHEN** a post has two likes and three direct replies
-- **THEN** the like and reply icons each display their localized number, and their accessible names still contain the complete localized count sentences
+- **WHEN** a post has visible vote, reply, or other count metadata
+- **THEN** the corresponding icon displays its localized number and its accessible name still contains the complete localized count sentence
 
 #### Scenario: Like state is exposed
-- **WHEN** a reader toggles the like action and the server accepts the change
-- **THEN** the control reports its new pressed state and shows a filled icon when liked and an outline icon when not liked
+- **WHEN** a reader toggles the compatibility like action and the server accepts the change
+- **THEN** the control reports its new pressed state and shows a filled icon when liked and an outline icon when not
 
 #### Scenario: Delete keeps its flow
 - **WHEN** a reader activates the delete icon and cancels or confirms the confirmation dialog
 - **THEN** the existing confirmation, cancellation, deletion, and focus restoration behavior is unchanged
+
+#### Scenario: Vote state is exposed
+- **WHEN** a reader changes an upvote to a downvote
+- **THEN** the selected vote direction is exposed programmatically and distinguished by more than color
+
+#### Scenario: Disabled direction
+- **WHEN** the site disables a vote direction
+- **THEN** the corresponding action is absent or disabled with an accessible explanation and does not appear as an enabled mutation
+
+### Requirement: Management workspace presentation
+Current-site and community management pages SHALL use a clear page heading, labeled sections, native forms, semantic lists, and visible loading, empty, forbidden, conflict, and retry states. Filters and pagination SHALL preserve understandable context. Destructive actions SHALL use explicit localized labels and SHALL not rely on color alone.
+
+#### Scenario: Compact management page
+- **WHEN** an administrator uses report, moderation, or ban management at 320 CSS pixels
+- **THEN** forms and list content reflow without page-level horizontal scrolling and all actions remain operable
+
+#### Scenario: Unauthorized management state
+- **WHEN** a protected management request returns forbidden
+- **THEN** the page shows a localized permission message without presenting stale controls as successful
+
+### Requirement: Accessible account and moderation forms
+Account block, password reset, password change, report submission, report resolution, and ban forms SHALL provide persistent labels, input guidance, associated errors, and keyboard-operable submission. Confirmation SHALL be required where an action removes access or finalizes a report, and focus SHALL remain predictable after completion or failure. Tokens and passwords SHALL use appropriate input types and SHALL not be exposed in visible text.
+
+#### Scenario: Invalid ban expiry
+- **WHEN** an administrator enters an invalid expiry
+- **THEN** the localized error is associated with the expiry field and focus remains in the form
+
+#### Scenario: Keyboard report submission
+- **WHEN** a keyboard user submits a report without a reason
+- **THEN** the error is announced, focus moves to an actionable field or summary, and no request is presented as successful
 
 ### Requirement: Notification unread summary presentation
 On the notifications page, the unread-count summary in the action row SHALL use the same computed text size as the adjacent read action and SHALL render without the accent outline used by categorical chips. These changes SHALL apply to the notification summary only and SHALL NOT change the compact text size or accent outline of community mode or policy chips.
