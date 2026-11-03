@@ -16,7 +16,7 @@ import Set exposing (Set)
 import Ui.CommunityCard exposing (communityCard)
 import Ui.Feedback exposing (problemText, viewRemote)
 import Ui.Formatting exposing (policyLabel)
-import Ui.Layout exposing (pageHeading)
+import Ui.Layout exposing (entityHeading, pageHeading)
 import Ui.Pagination exposing (emptyWithPagination, viewPagination)
 import Url exposing (Url)
 
@@ -217,7 +217,7 @@ pageCommunities config model active =
 
 pageCommunity : Config msg -> ViewModel -> Active -> String -> Html msg
 pageCommunity config model active id =
-    pageHeading
+    entityHeading
         (case model.community of
             Ready community ->
                 community.title

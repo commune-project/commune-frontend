@@ -41,11 +41,8 @@ incomingDecoder =
 
 formattingDecoder : Decode.Decoder Formatting
 formattingDecoder =
-    Decode.map6 Formatting
+    Decode.map3 Formatting
         (Decode.field "locale" Decode.string)
-        (Decode.at [ "times", "0", "source" ] Decode.string)
-        (Decode.at [ "times", "0", "absolute" ] Decode.string)
-        (Decode.at [ "times", "0", "relative" ] Decode.string)
         (Decode.field "numbers" (Decode.list pairedIntString))
         (Decode.field "plurals" (Decode.list pairedIntString))
 
@@ -79,7 +76,6 @@ requestFormatting locale =
         (Encode.object
             [ ( "action", Encode.string "format" )
             , ( "locale", Encode.string (Locale.code locale) )
-            , ( "times", Encode.list Encode.string [ "2026-10-20T08:30:00Z" ] )
             , ( "numbers", Encode.list Encode.int [ 1, 3, 1234567 ] )
             , ( "plurals", Encode.list Encode.int [ 1, 3 ] )
             ]
@@ -89,6 +85,20 @@ requestFormatting locale =
 focus : String -> Cmd msg
 focus identifier =
     outgoing (Encode.object [ ( "action", Encode.string "focus" ), ( "id", Encode.string identifier ) ])
+
+
+replaceRange : { id : String, start : Int, end : Int, text : String, caret : Int } -> Cmd msg
+replaceRange replacement =
+    outgoing
+        (Encode.object
+            [ ( "action", Encode.string "replace-range" )
+            , ( "id", Encode.string replacement.id )
+            , ( "start", Encode.int replacement.start )
+            , ( "end", Encode.int replacement.end )
+            , ( "text", Encode.string replacement.text )
+            , ( "caret", Encode.int replacement.caret )
+            ]
+        )
 
 
 openDialog : String -> Cmd msg

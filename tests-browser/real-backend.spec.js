@@ -44,9 +44,9 @@ test.describe('real backend', () => {
     const postId = page.url().split('/').pop();
     await expect(page.getByRole('heading', { level: 1, name: topicTitle })).toBeVisible();
 
-    const like = page.getByRole('article', { name: topicTitle }).getByRole('button', { name: /^Like/ });
-    await like.click();
-    await expect(page.getByRole('article', { name: topicTitle }).getByRole('button', { name: /^Unlike/ })).toBeVisible();
+    const upvote = page.getByRole('article', { name: topicTitle }).getByRole('button', { name: /^Upvote/ });
+    await upvote.click();
+    await expect(page.getByRole('article', { name: topicTitle }).getByRole('button', { name: /^Clear vote/ })).toBeVisible();
 
     await page.getByRole('link', { name: 'Edit post' }).click();
     await page.getByLabel('Topic title').fill(topicTitle + ' edited');

@@ -1,4 +1,4 @@
-module Domain exposing (AccountBlock, AccountContentSource(..), Attachment, Author, Community, FollowRequest, Identity, MediaUpload, ModerationLogEntry, Notice, NotificationPage, Page, Post, Profile, Report, Roster, Source, ThreadedPost(..), VoteSettings, accountBlock, accountContentSource, community, followRequest, identity, media, moderationLogEntry, notice, notificationPage, page, post, profile, report, roster, source, threadedPost, voteSettings)
+module Domain exposing (AccountBlock, AccountContentSource(..), Attachment, Author, Community, FollowRequest, Identity, MediaUpload, MentionCandidate, ModerationLogEntry, Notice, NotificationPage, Page, Post, Profile, Report, Roster, Source, ThreadedPost(..), VoteSettings, accountBlock, accountContentSource, community, followRequest, identity, media, mentionCandidate, mentionCandidatePage, moderationLogEntry, notice, notificationPage, page, post, profile, report, roster, source, threadedPost, voteSettings)
 
 import Dict
 import Json.Decode as D exposing (Decoder)
@@ -103,6 +103,10 @@ type alias Source =
 
 type alias Profile =
     { username : String, actor : String, name : String, biography : String, html : String, avatar : String }
+
+
+type alias MentionCandidate =
+    { actor : String, acct : String, displayName : String, avatar : String }
 
 
 type alias Roster =
@@ -352,6 +356,20 @@ source =
 profile : Decoder Profile
 profile =
     D.map6 Profile (D.field "username" D.string) (D.field "actor_uri" D.string) (D.field "display_name" D.string) (D.field "biography" D.string) (D.field "biography_html" D.string) (D.field "avatar_url" D.string)
+
+
+mentionCandidate : Decoder MentionCandidate
+mentionCandidate =
+    D.map4 MentionCandidate
+        (D.field "actor_uri" D.string)
+        (D.field "acct" D.string)
+        (optional "display_name" D.string "")
+        (optional "avatar" D.string "")
+
+
+mentionCandidatePage : Decoder (List MentionCandidate)
+mentionCandidatePage =
+    D.field "items" (D.list mentionCandidate)
 
 
 roster : Decoder Roster

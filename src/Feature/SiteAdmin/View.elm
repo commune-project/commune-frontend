@@ -6,7 +6,7 @@ import Dict
 import Domain
 import Feature.SiteAdmin.State exposing (Model)
 import Generated.I18n as Translations
-import Html exposing (Html, a, button, div, form, h2, input, label, li, option, p, section, select, span, text, textarea, ul)
+import Html exposing (Html, a, button, div, form, h2, input, label, li, option, p, section, select, span, text, textarea, time, ul)
 import Html.Attributes as A
 import Html.Events as Events
 import Json.Decode as Decode
@@ -15,7 +15,7 @@ import Remote exposing (Remote(..))
 import Route
 import Set
 import Ui.Feedback exposing (loginRequired, viewFormProblem, viewRemote)
-import Ui.Formatting exposing (Formatting, boolText, formattedDate)
+import Ui.Formatting exposing (Formatting, boolText)
 import Ui.Layout exposing (pageHeading)
 import Ui.Pagination exposing (viewPagination)
 import Url exposing (Url)
@@ -207,7 +207,7 @@ reportsList config model active page =
                             [ p [ A.class "chips" ]
                                 [ span [ A.class "chip" ] [ text report.targetKind ]
                                 , span [ A.class "chip" ] [ text (stateLabel active.texts report.state) ]
-                                , span [ A.class "chip" ] [ text (formattedDate model.formatted report.createdAt) ]
+                                , time [ A.class "chip", A.datetime report.createdAt, A.attribute "data-commune-time" "" ] [ text report.createdAt ]
                                 ]
                             , p [ A.class "metadata" ] [ text (Translations.targetId active.texts ++ ": "), text report.targetId ]
                             , p [ A.dir "auto" ] [ text report.reason ]
@@ -284,7 +284,7 @@ modlogList model active page =
                         li [ A.class "card" ]
                             [ p [ A.class "chips" ]
                                 [ span [ A.class "chip" ] [ text entry.action ]
-                                , span [ A.class "chip" ] [ text (formattedDate model.formatted entry.createdAt) ]
+                                , time [ A.class "chip", A.datetime entry.createdAt, A.attribute "data-commune-time" "" ] [ text entry.createdAt ]
                                 ]
                             , p [ A.class "metadata" ]
                                 [ text (Translations.actingActor active.texts ++ ": ")

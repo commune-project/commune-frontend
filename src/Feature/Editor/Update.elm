@@ -3,6 +3,8 @@ module Feature.Editor.Update exposing (Msg(..), Outcome, load, update)
 import Api
 import App.Feedback exposing (Flash(..))
 import Domain
+import Feature.Authoring.State as AuthoringState
+import Feature.Authoring.Update as Authoring
 import Feature.Editor.State exposing (..)
 import File exposing (File)
 import Html exposing (label)
@@ -17,7 +19,7 @@ import Url exposing (Url)
 type Msg
     = StartReply String
     | EditorTitleChanged String
-    | EditorBodyChanged String
+    | AuthoringMsg Authoring.Msg
     | EditorFormatChanged String
     | EditorRemoveAttachment String
     | EditorFileSelected (Maybe File)
@@ -85,8 +87,31 @@ updateWorking csrf message model =
         EditorTitleChanged value ->
             setEditor model (\editor -> { editor | title = value, problem = Nothing }) Cmd.none
 
-        EditorBodyChanged value ->
-            setEditor model (\editor -> { editor | body = value, problem = Nothing }) Cmd.none
+        AuthoringMsg authoringMessage ->
+            case model.editor of
+                Just editor ->
+                    let
+                        ( authoring, command, outcome ) =
+                            Authoring.update authoringMessage editor.authoring
+                    in
+                    ( { model
+                        | editor =
+                            Just
+                                { editor
+                                    | authoring = authoring
+                                    , problem =
+                                        if outcome.changed then
+                                            Nothing
+
+                                        else
+                                            editor.problem
+                                }
+                      }
+                    , Cmd.map AuthoringMsg command
+                    )
+
+                Nothing ->
+                    ( model, Cmd.none )
 
         EditorFormatChanged value ->
             setEditor model (\editor -> { editor | format = value, problem = Nothing }) Cmd.none
@@ -126,7 +151,7 @@ updateWorking csrf message model =
                             Just
                                 { editor
                                     | title = source.title
-                                    , body = source.body
+                                    , authoring = AuthoringState.setValue source.body editor.authoring
                                     , format = source.format
                                     , version = Just source.version
                                     , attachments = sourceAttachments source
@@ -223,8 +248,11 @@ updateWorking csrf message model =
                                         else
                                             "[" ++ label ++ "](" ++ uploaded.reference ++ ")"
 
+                                    currentBody =
+                                        body editor
+
                                     separator =
-                                        if String.isEmpty (String.trim editor.body) then
+                                        if String.isEmpty (String.trim currentBody) then
                                             ""
 
                                         else
@@ -235,7 +263,7 @@ updateWorking csrf message model =
                                         Just
                                             { editor
                                                 | uploading = False
-                                                , body = String.trimRight editor.body ++ separator ++ markdown ++ "\n"
+                                                , authoring = AuthoringState.setValue (String.trimRight currentBody ++ separator ++ markdown ++ "\n") editor.authoring
                                                 , attachments = editor.attachments ++ [ { id = uploaded.id, name = uploaded.name, reference = uploaded.reference } ]
                                             }
                                     , flash = FlashUploaded
@@ -263,7 +291,7 @@ updateWorking csrf message model =
                             Just
                                 { mode = EditPost id
                                 , title = source.title
-                                , body = source.body
+                                , authoring = AuthoringState.init "editor-body" source.body
                                 , format =
                                     if String.isEmpty source.format then
                                         "legacy"
@@ -288,6 +316,9 @@ updateWorking csrf message model =
 submitEditor : String -> Working -> EditorState -> ( Working, Cmd Msg )
 submitEditor csrf model editor =
     let
+        editorBody =
+            body editor
+
         attachmentIds =
             Encode.list Encode.string (List.map .id editor.attachments)
 
@@ -299,7 +330,7 @@ submitEditor csrf model editor =
                     , Encode.encode 0
                         (Encode.object
                             [ ( "title", Encode.string editor.title )
-                            , ( "body", Encode.string editor.body )
+                            , ( "body", Encode.string editorBody )
                             , ( "content_format", Encode.string editor.format )
                             , ( "attachment_ids", attachmentIds )
                             ]
@@ -311,7 +342,7 @@ submitEditor csrf model editor =
                     , "/api/v1/posts/" ++ urlEncode postId ++ "/replies"
                     , Encode.encode 0
                         (Encode.object
-                            [ ( "body", Encode.string editor.body )
+                            [ ( "body", Encode.string editorBody )
                             , ( "content_format", Encode.string editor.format )
                             , ( "attachment_ids", attachmentIds )
                             ]
@@ -326,7 +357,7 @@ submitEditor csrf model editor =
                         ++ ",\"title\":"
                         ++ Encode.encode 0 (Encode.string editor.title)
                         ++ ",\"body\":"
-                        ++ Encode.encode 0 (Encode.string editor.body)
+                        ++ Encode.encode 0 (Encode.string editorBody)
                         ++ ",\"content_format\":"
                         ++ Encode.encode 0 (Encode.string editor.format)
                         ++ ",\"attachment_ids\":"

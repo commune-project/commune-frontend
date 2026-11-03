@@ -25,6 +25,13 @@ type Icon
     | Close
     | ThumbUp Bool
     | ThumbDown Bool
+    | FormatBold
+    | FormatItalic
+    | Link
+    | Code
+    | Quote
+    | BulletList
+    | NumberedList
     | Bookmark Bool
     | Hide Bool
     | Report
@@ -98,16 +105,37 @@ data icon =
             Icons.close
 
         ThumbUp True ->
-            Icons.thumbUp
+            Icons.thumbUpFilled
 
         ThumbUp False ->
             Icons.thumbUp
 
         ThumbDown True ->
-            Icons.thumbDown
+            Icons.thumbDownFilled
 
         ThumbDown False ->
             Icons.thumbDown
+
+        FormatBold ->
+            Icons.formatBold
+
+        FormatItalic ->
+            Icons.formatItalic
+
+        Link ->
+            Icons.link
+
+        Code ->
+            Icons.code
+
+        Quote ->
+            Icons.formatQuote
+
+        BulletList ->
+            Icons.formatListBulleted
+
+        NumberedList ->
+            Icons.formatListNumbered
 
         Bookmark True ->
             Icons.bookmark

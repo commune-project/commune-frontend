@@ -15,7 +15,7 @@ import List
 import Remote exposing (Remote(..))
 import Route
 import Ui.Feedback exposing (loginRequired, viewRemote)
-import Ui.Formatting exposing (Formatting, formattedDate)
+import Ui.Formatting exposing (Formatting)
 import Ui.Layout exposing (pageHeading)
 import Ui.Pagination exposing (viewPagination)
 import Url exposing (Url)
@@ -212,7 +212,7 @@ notificationItem : Config msg -> ViewModel -> Active -> Domain.Notice -> Html ms
 notificationItem config model active notice =
     li [ A.class "card" ]
         [ p [] [ strong [] [ bdi [] [ text notice.actor ] ], text " ", text (notificationKind active.texts notice.kind) ]
-        , p [ A.class "metadata" ] [ time [ A.datetime notice.date, A.attribute "data-commune-time" "" ] [ text (formattedDate model.formatted notice.date) ] ]
+        , p [ A.class "metadata" ] [ time [ A.datetime notice.date, A.attribute "data-commune-time" "" ] [ text notice.date ] ]
         , div [ A.class "actions" ]
             [ notificationTargetLink active notice
             , if notice.read then

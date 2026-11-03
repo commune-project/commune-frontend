@@ -2,10 +2,12 @@ module Feature.Editor.View exposing (Config, pageEditor, viewEditor)
 
 import App.Context exposing (Active)
 import App.Session exposing (AuthState(..))
+import Feature.Authoring.Update as Authoring
+import Feature.Authoring.View as AuthoringView
 import Feature.Editor.State exposing (..)
 import File exposing (File)
 import Generated.I18n as Translations
-import Html exposing (Html, button, div, form, h3, input, label, li, option, p, pre, section, select, text, textarea, ul)
+import Html exposing (Html, button, div, form, h3, input, label, li, option, p, pre, section, select, text, ul)
 import Html.Attributes as A
 import Html.Events as Events
 import Json.Decode as Decode
@@ -18,7 +20,7 @@ type alias Config msg =
     { auth : AuthState
     , retry : msg
     , editorTitleChanged : String -> msg
-    , editorBodyChanged : String -> msg
+    , editorAuthoring : Authoring.Msg -> msg
     , editorFormatChanged : String -> msg
     , editorRemoveAttachment : String -> msg
     , editorFileSelected : Maybe File -> msg
@@ -78,19 +80,16 @@ viewEditor config active editor =
 
             CreateTopic _ ->
                 editorTitle config active editor
-        , div []
-            [ label [ A.for "editor-body" ] [ text (Translations.topicBody active.texts) ]
-            , textarea
-                [ A.id "editor-body"
-                , A.value editor.body
-                , A.dir "auto"
-                , A.required True
-                , A.attribute "aria-describedby" "editor-help"
-                , Events.onInput config.editorBodyChanged
-                ]
-                []
-            , p [ A.id "editor-help", A.class "muted" ] [ text (Translations.topicBodyHelp active.texts) ]
-            ]
+        , AuthoringView.view
+            { id = "editor-body"
+            , label = Translations.topicBody active.texts
+            , helpId = "editor-help"
+            , helpText = Translations.topicBodyHelp active.texts
+            , required = True
+            , toMsg = config.editorAuthoring
+            }
+            active
+            editor.authoring
         , div []
             [ label [ A.for "editor-format" ] [ text (Translations.contentFormat active.texts) ]
             , select [ A.id "editor-format", Events.on "change" (Decode.map config.editorFormatChanged (Decode.at [ "target", "value" ] Decode.string)) ]

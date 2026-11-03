@@ -83,3 +83,10 @@ Compact navigation correction: the compact rule `.desktop-nav { display: none }`
 - Automated axe scans covered the account collections, personal blocks, password routes, community management, and all current-site administration routes at 1280, 768, and 320 CSS pixels with no reported WCAG 2.2 A/AA violations.
 - `npm run format:check`, `npm run i18n:check`, `ELM_HOME=/tmp/commune-elm-home npm run compile`, and `ELM_HOME=/tmp/commune-elm-home npm run build` passed.
 - The real-backend acceptance workflow was attempted through the full Playwright run but remained skipped; no live backend behavior is claimed from that skipped test.
+
+## Authoring and presentation refinement, 2026-11-03
+
+- `ELM_HOME=/tmp/commune-elm-home npm test` passed 16 JavaScript tests and 41 Elm tests. The Elm suite adds Markdown token detection, formatting, complete-handle insertion, stale candidate rejection, and merged-vote visibility cases.
+- `npm run test:browser` passed 63 Playwright tests and skipped the real-backend test because external HTTPS and PostgreSQL credentials were not supplied. The suite adds toolbar formatting, local and stored remote mention insertion, IME-safe Enter, empty and unavailable candidate states, timestamp stability after vote refresh and locale switching, compact section and entity headings, disabled-direction clearing, and busy vote controls.
+- Automated axe scans at 1280, 768, and 320 CSS pixels reported no WCAG 2.2 A/AA violations across the existing routes and an authoring page with the mention listbox open.
+- `npm run format:check`, `npm run i18n:check`, and `ELM_HOME=/tmp/commune-elm-home npm run compile` passed. The real-backend workflow remains unverified in this run.

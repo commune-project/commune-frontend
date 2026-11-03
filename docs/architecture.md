@@ -14,7 +14,7 @@ Remote reads and mutation responses carry the current route epoch. Main discards
 | `App.Routing` | Reset route reads through feature APIs, enter features, wrap load commands, and coordinate unread refreshes. |
 | `App.Features` | Map feature commands, apply explicit outcomes, and coordinate navigation, session cleanup, and cross-feature changes. |
 | `App.Access` | Apply session-expiry cleanup and clear protected state after logout. |
-| `App.Interaction` | Apply a completed like consistently to visible post representations across features. |
+| `App.Interaction` | Apply a completed vote consistently to visible post representations across features. |
 | `App.Localization`, `App.Browser` | Coordinate the existing localization state machine and handle incoming browser data. |
 | `App.Shell` | Render navigation, loading/fallback UI, drawer, confirmations, language selector, and global feedback around a supplied page. |
 | `App.View`, `App.View.*` | Select document titles/pages and provide feature-specific view data, callbacks, and editor slots. |
@@ -29,6 +29,7 @@ Remote reads and mutation responses carry the current route epoch. Main discards
 | `Feature.AccountContent` | Saved, read, hidden, and liked post collections. |
 | `Feature.AccountBlocks` | Account-scoped person, community, and instance block management. |
 | `Feature.Editor` | Topic/reply/edit modes, drafts, exact source versions, attachments, uploads, saves, and conflict recovery. |
+| `Feature.Authoring` | Shared source-first Markdown value, selection, formatting commands, mention candidate state, debounce, and insertion outcomes used by Editor and Profile. |
 | `Feature.CommunityManage` | Community policies, rosters, follow requests, scoped reports and history, bans, moderation fields, and busy actions. |
 | `Feature.Profile` | Public/own profile reads, settings form, avatar keep/clear/replace states, uploads and saving. |
 | `Feature.Report` | Shared post, community, and person report target, validation, submission, and accessible dialog state. |
@@ -50,15 +51,15 @@ Site administration is explicitly current-site scoped. The client does not expos
 
 `App.Access.clearPrivate` clears own profile/form, notifications/count, management state and all mutation busy keys, preserving the original cleanup boundary. Feature outcomes determine when a 401 invokes this cleanup. Existing profile save/upload and community-creation failures remain local form errors and preserve drafts; they do not independently change authentication state. Route read failures and the existing session-aware action paths retain their original cleanup behavior. See the change's migration checklist and regression evidence for the comparison with the original implementation.
 
-Main wraps asynchronous feature commands with route epochs using `Cmd.map`. Inputs use separate immediate-message wrappers. Only validated responses reach feature decoding/update functions. Successful authentication outcomes update generations, navigate, and request CSRF; post saves/deletes request navigation; notification actions reload their snapshot; completed likes update visible representations through the application adapter.
+Main wraps asynchronous feature commands with route epochs using `Cmd.map`. Inputs use separate immediate-message wrappers. Only validated responses reach feature decoding/update functions. Successful authentication outcomes update generations, navigate, and request CSRF; post saves/deletes request navigation; notification actions reload their snapshot; completed votes update visible representations through the application adapter.
 
 ## Presentation and browser boundary
 
-`Ui.Feedback`, `Ui.Pagination`, `Ui.Formatting`, `Ui.PostCard`, `Ui.CommunityCard`, `Ui.CommunityPolicy`, and `Ui.Layout` accept presentation data and generic callbacks. They own no HTTP state and do not depend on the application Model/Msg. Cards receive nested content through a callback. `Ports.elm` owns port definitions, message decoding and commands for locale, CSRF, formatting, focus and native dialogs, preserving the JavaScript protocol.
+`Ui.Feedback`, `Ui.Pagination`, `Ui.Formatting`, `Ui.PostCard`, `Ui.VoteControl`, `Ui.CommunityCard`, `Ui.CommunityPolicy`, and `Ui.Layout` accept presentation data and generic callbacks. They own no HTTP state and do not depend on the application Model/Msg. Cards receive nested content through a callback. `Ports.elm` owns port definitions, message decoding and commands for locale, CSRF, formatting, focus, selection-aware text replacement, and native dialogs, preserving the JavaScript protocol.
 
 Session cookies remain HttpOnly. The JavaScript bootstrap reads only the non-HttpOnly CSRF cookie and sends it back through Elm for mutation headers. The server remains authoritative for permissions, CSRF, and membership. JavaScript is otherwise limited to browser preferences, dynamic catalog decoding, Intl formatting, focus requests, native dialog control, and IME composition protection.
 
-Post display renders the server's sanitized HTML through an allowlisted Elm parser. Editing always uses the source endpoint and sends the exact expected version as a JSON number. The generated local-time display decorates semantic `<time datetime>` elements without changing stored timestamps.
+Post display renders the server's sanitized HTML through an allowlisted Elm parser. Editing uses the shared source-first Markdown authoring surface and sends the exact expected version as a JSON number. The browser bridge formats semantic `<time datetime>` elements as localized absolute date/time values in the viewer's time zone; it does not append a relative phrase or change stored timestamps.
 
 Translations are generated from Fluent catalogs by Travelm Agency. Only selected JSON catalogs load at runtime. See `localization.md` for resource identity and failure behavior.
 

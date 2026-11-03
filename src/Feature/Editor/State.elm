@@ -2,6 +2,7 @@ module Feature.Editor.State exposing (..)
 
 import Api
 import Domain
+import Feature.Authoring.State as Authoring
 import Remote exposing (Remote(..))
 
 
@@ -18,7 +19,7 @@ type alias EditorAttachment =
 type alias EditorState =
     { mode : EditorMode
     , title : String
-    , body : String
+    , authoring : Authoring.Model
     , format : String
     , version : Maybe String
     , attachments : List EditorAttachment
@@ -33,7 +34,7 @@ emptyEditor : EditorMode -> EditorState
 emptyEditor mode =
     { mode = mode
     , title = ""
-    , body = ""
+    , authoring = Authoring.init "editor-body" ""
     , format = "markdown"
     , version = Nothing
     , attachments = []
@@ -42,6 +43,11 @@ emptyEditor mode =
     , problem = Nothing
     , conflict = Nothing
     }
+
+
+body : EditorState -> String
+body editor =
+    Authoring.value editor.authoring
 
 
 sourceAttachments : Domain.Source -> List EditorAttachment

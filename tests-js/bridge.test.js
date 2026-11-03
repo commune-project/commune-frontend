@@ -21,18 +21,19 @@ test('uses browser plural categories', () => {
   assert.equal(pluralCategory('zh-cmn-Hans-CN', 1), 'other');
 });
 
-test('formats dates and relative times in the selected locale', () => {
-  const english = formatTime('en-US', '2026-10-20T08:30:00Z', Date.parse('2026-10-20T09:30:00Z'));
-  const traditional = formatTime('zh-cmn-Hant-TW', '2026-10-20T08:30:00Z', Date.parse('2026-10-20T09:30:00Z'));
-  assert.match(english.absolute, /2026/);
-  assert.match(english.relative, /hour/);
-  assert.match(traditional.relative, /小時|小時|小時/);
+test('formats absolute dates and times in the selected locale', () => {
+  const english = formatTime('en-US', '2026-10-20T08:30:00Z');
+  const traditional = formatTime('zh-cmn-Hant-TW', '2026-10-20T08:30:00Z');
+  assert.match(english, /2026/);
+  assert.match(traditional, /2026/);
+  assert.doesNotMatch(english, /ago/);
+  assert.doesNotMatch(traditional, /前/);
+  assert.equal(formatTime('en-US', '2026-10-20T08:30:00Z'), english);
 });
 
 test('returns safe values for invalid dates', () => {
   const result = formatTime('en-US', 'not-a-date');
-  assert.equal(result.absolute, 'not-a-date');
-  assert.equal(result.relative, 'not-a-date');
+  assert.equal(result, 'not-a-date');
 });
 
 test('survives unavailable preference storage', () => {

@@ -13,6 +13,7 @@ The main request groups are:
 | Discovery | `/api/v1/topics`, `/api/v1/communities`, `/api/v1/communities/{id}/topics` |
 | Posts | `/api/v1/posts/{id}`, `/replies`, `/vote`, `/likes`, `/save`, `/read`, `/hide-for-me`, `/source`, `/hide`, `/import` |
 | Search | `/api/v1/search?kind=posts|communities&q=...` |
+| Mentions | `/api/v1/mentions/candidates?q=...&limit=8` |
 | Notifications | `/api/v1/notifications`, `/unread-count`, `/{id}/read`, `/read-all` |
 | Profiles | `/api/v1/profile`, `/api/v1/profiles/{username}` |
 | Media | `/api/v1/media`, `/api/v1/media/private/{id}` |
@@ -27,4 +28,4 @@ Writes carry the current CSRF value. Editing reads `/source` and sends its revis
 
 Management routes remain scoped to the site resolved by the browser authority. Deployment-wide site, account, role, active-ban inventory, report-detail, and cross-site moderation contracts are not currently available and are not simulated by the frontend.
 
-The isolated real-backend test seeds a site, an administrative account, and an ordinary account. It exercises sessions, CSRF, community creation, topic publication, valid image upload/binding, source-backed editing, likes, management, second-account replies, profile updates, search, notification projection, and the registration-disabled response. SMTP delivery and external federation are not exercised by the default fixture server.
+The isolated real-backend test seeds a site, an administrative account, and an ordinary account. It exercises sessions, CSRF, community creation, topic publication, valid image upload/binding, source-backed editing, votes, management, second-account replies, profile updates, search, notification projection, and the registration-disabled response. SMTP delivery and external federation are not exercised by the default fixture server.

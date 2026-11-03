@@ -31,13 +31,9 @@ const csrf = () =>
 const formatTimes = () => {
   const locale = document.documentElement.lang || "en-US";
   for (const element of document.querySelectorAll("time[data-commune-time]")) {
-    if (element.dataset.communeFormattedLocale === locale) continue;
-    const result = formatTime(
-      locale,
-      element.getAttribute("datetime") || element.textContent || "",
-    );
-    element.textContent = result.absolute + " · " + result.relative;
-    element.dataset.communeFormattedLocale = locale;
+    const source = element.getAttribute("datetime") || element.textContent || "";
+    const formatted = formatTime(locale, source);
+    if (element.textContent !== formatted) element.textContent = formatted;
   }
 };
 const wideMedia = window.matchMedia("(min-width: 1200px)");
@@ -117,10 +113,6 @@ app.ports.outgoing.subscribe((message) => {
       app.ports.incoming.send({ kind: "csrf", value: csrf() });
       break;
     case "format": {
-      const times = message.times.map((source) => ({
-        source,
-        ...formatTime(message.locale, source),
-      }));
       let numbers = [];
       try {
         numbers = message.numbers.map((value) => ({
@@ -144,7 +136,7 @@ app.ports.outgoing.subscribe((message) => {
       app.ports.incoming.send({
         kind: "formatted",
         locale: message.locale,
-        times,
+        times: [],
         numbers,
         plurals,
       });
@@ -153,6 +145,23 @@ app.ports.outgoing.subscribe((message) => {
     case "focus":
       requestAnimationFrame(() => document.getElementById(message.id)?.focus());
       break;
+    case "replace-range": {
+      const element = document.getElementById(message.id);
+      if (!element || typeof element.setRangeText !== "function") break;
+      const size = element.value.length;
+      const start = Math.max(0, Math.min(size, Number(message.start) || 0));
+      const end = Math.max(start, Math.min(size, Number(message.end) || start));
+      const text = typeof message.text === "string" ? message.text : "";
+      element.focus();
+      element.setRangeText(text, start, end, "end");
+      const caret = Math.max(
+        0,
+        Math.min(element.value.length, Number(message.caret) || start + text.length),
+      );
+      element.setSelectionRange(caret, caret);
+      element.dispatchEvent(new Event("input", { bubbles: true }));
+      break;
+    }
     case "dialog-open":
       requestAnimationFrame(() => {
         const dialog = document.getElementById(message.id);
@@ -167,8 +176,9 @@ app.ports.outgoing.subscribe((message) => {
     }
   }
 });
-new MutationObserver(formatTimes).observe(document.getElementById("app"), {
+formatTimes();
+new MutationObserver(formatTimes).observe(document.body, {
   childList: true,
   subtree: true,
+  characterData: true,
 });
-formatTimes();

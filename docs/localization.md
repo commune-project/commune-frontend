@@ -36,4 +36,6 @@ Each JSON catalog carries an internal catalog identity. The client checks both t
 
 Add the same key and placeholder names to every existing catalog. Use complete messages for terminology and plural forms; avoid concatenating translated fragments. Count labels use browser `Intl.PluralRules` to select `one` or `other`, and displayed numbers use `Intl.NumberFormat`.
 
+Timestamps are rendered by the browser bridge from semantic `<time datetime>` elements. The bridge uses the active interface locale and the browser's time zone with `dateStyle: "medium"` and `timeStyle: "short"`. It writes only when the formatted text differs from the current text, so an Elm re-render cannot leave raw ISO visible and the mutation observer cannot loop. Visible timestamps contain one absolute value; relative-time phrases are not appended.
+
 When adding a locale, add the Fluent file, extend `Locale` negotiation and labels, update the public-to-Intl mapping, regenerate accessors, and extend browser parity and accessibility tests. A new right-to-left interface locale also needs a production review of mirrored navigation and icons; the current `?test-rtl` option exists only to exercise shared component layout during development.

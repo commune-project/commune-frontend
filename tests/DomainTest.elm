@@ -128,4 +128,18 @@ suite =
                             ]
                     ]
                     ()
+        , test "decodes mention candidates with empty fallbacks" <|
+            \_ ->
+                Expect.equal
+                    (Ok [ ( "alice@forum.test", "Alice", "" ), ( "bob@remote.test", "", "" ) ])
+                    (Decode.decodeString
+                        Domain.mentionCandidatePage
+                        "{\"items\":[{\"actor_uri\":\"https://forum.test/users/alice\",\"acct\":\"alice@forum.test\",\"display_name\":\"Alice\",\"avatar\":\"\"},{\"actor_uri\":\"https://remote.test/users/bob\",\"acct\":\"bob@remote.test\"}]}"
+                        |> Result.map
+                            (List.map
+                                (\candidate ->
+                                    ( candidate.acct, candidate.displayName, candidate.avatar )
+                                )
+                            )
+                    )
         ]

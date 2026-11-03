@@ -6,26 +6,9 @@ import List
 
 type alias Formatting =
     { locale : String
-    , source : String
-    , absolute : String
-    , relative : String
     , numbers : List ( Int, String )
     , plurals : List ( Int, String )
     }
-
-
-formattedDate : Maybe Formatting -> String -> String
-formattedDate model source =
-    case model of
-        Just current ->
-            if current.source == source then
-                current.absolute
-
-            else
-                source
-
-        Nothing ->
-            source
 
 
 likesLabel : Maybe Formatting -> Translations.I18n -> Int -> String
@@ -44,6 +27,24 @@ repliesLabel model texts count =
 
     else
         Translations.repliesOther (formattedCount model count) texts
+
+
+upvoteCountLabel : Maybe Formatting -> Translations.I18n -> Int -> String
+upvoteCountLabel model texts count =
+    if pluralCategory model count == "one" then
+        Translations.upvoteCountOne (formattedCount model count) texts
+
+    else
+        Translations.upvoteCountOther (formattedCount model count) texts
+
+
+downvoteCountLabel : Maybe Formatting -> Translations.I18n -> Int -> String
+downvoteCountLabel model texts count =
+    if pluralCategory model count == "one" then
+        Translations.downvoteCountOne (formattedCount model count) texts
+
+    else
+        Translations.downvoteCountOther (formattedCount model count) texts
 
 
 formattedCount : Maybe Formatting -> Int -> String

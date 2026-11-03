@@ -5,9 +5,12 @@ import App.Context exposing (Active)
 import App.Feedback exposing (Flash(..))
 import App.Session exposing (AuthState(..))
 import Domain
+import Feature.Authoring.State as AuthoringState
+import Feature.Authoring.Update as Authoring
+import Feature.Authoring.View as AuthoringView
 import File exposing (File)
 import Generated.I18n as Translations
-import Html exposing (Html, a, bdi, button, div, form, h2, img, input, label, p, section, text, textarea)
+import Html exposing (Html, a, bdi, button, div, form, h2, img, input, label, p, section, text)
 import Html.Attributes as A
 import Html.Events as Events
 import Json.Decode as Decode
@@ -15,7 +18,7 @@ import Json.Encode as Encode
 import Remote exposing (Remote(..))
 import Route
 import Ui.Feedback exposing (loginRequired, viewFormProblem, viewRemote)
-import Ui.Layout exposing (pageHeading)
+import Ui.Layout exposing (entityHeading, pageHeading)
 import Ui.Rich
 import Url
 
@@ -28,7 +31,7 @@ type AvatarChange
 
 type alias ProfileForm =
     { displayName : String
-    , biography : String
+    , authoring : AuthoringState.Model
     , avatar : AvatarChange
     , avatarUrl : String
     , uploading : Bool
@@ -39,13 +42,13 @@ type alias ProfileForm =
 
 emptyProfileForm : ProfileForm
 emptyProfileForm =
-    { displayName = "", biography = "", avatar = KeepAvatar, avatarUrl = "", uploading = False, saving = False, problem = Nothing }
+    { displayName = "", authoring = AuthoringState.init "profile-bio" "", avatar = KeepAvatar, avatarUrl = "", uploading = False, saving = False, problem = Nothing }
 
 
 profileFormFrom : Domain.Profile -> ProfileForm
 profileFormFrom profile =
     { displayName = profile.name
-    , biography = profile.biography
+    , authoring = AuthoringState.init "profile-bio" profile.biography
     , avatar = KeepAvatar
     , avatarUrl = profile.avatar
     , uploading = False
@@ -68,7 +71,7 @@ type Msg
     | PublicLoaded Api.Response
     | OwnLoaded Api.Response
     | ProfileDisplayNameChanged String
-    | ProfileBiographyChanged String
+    | ProfileAuthoring Authoring.Msg
     | ProfileClearAvatar
     | ProfileSave
     | AvatarFileSelected (Maybe File)
@@ -102,8 +105,28 @@ updateWorking csrf message model =
         ProfileDisplayNameChanged value ->
             ( { model | profileForm = (\form -> { form | displayName = value, problem = Nothing }) model.profileForm }, Cmd.none )
 
-        ProfileBiographyChanged value ->
-            ( { model | profileForm = (\form -> { form | biography = value, problem = Nothing }) model.profileForm }, Cmd.none )
+        ProfileAuthoring authoringMessage ->
+            let
+                ( authoring, command, outcome ) =
+                    Authoring.update authoringMessage model.profileForm.authoring
+            in
+            ( { model
+                | profileForm =
+                    (\form ->
+                        { form
+                            | authoring = authoring
+                            , problem =
+                                if outcome.changed then
+                                    Nothing
+
+                                else
+                                    form.problem
+                        }
+                    )
+                        model.profileForm
+              }
+            , Cmd.map ProfileAuthoring command
+            )
 
         ProfileClearAvatar ->
             ( { model | profileForm = (\form -> { form | avatar = ClearAvatar, avatarUrl = "", problem = Nothing }) model.profileForm }, Cmd.none )
@@ -128,7 +151,7 @@ updateWorking csrf message model =
                 (Encode.encode 0
                     (Encode.object
                         ([ ( "display_name", Encode.string model.profileForm.displayName )
-                         , ( "biography", Encode.string model.profileForm.biography )
+                         , ( "biography", Encode.string (AuthoringState.value model.profileForm.authoring) )
                          ]
                             ++ avatar
                         )
@@ -224,7 +247,7 @@ updateWorking csrf message model =
 type alias Config msg =
     { retry : msg
     , profileDisplayNameChanged : String -> msg
-    , profileBiographyChanged : String -> msg
+    , profileAuthoring : Authoring.Msg -> msg
     , profileClearAvatar : msg
     , profileSave : msg
     , avatarFileSelected : Maybe File -> msg
@@ -242,7 +265,7 @@ type alias ViewModel =
 
 pagePublicProfile : Config msg -> ViewModel -> Active -> String -> Html msg
 pagePublicProfile config model active username =
-    pageHeading (Translations.profileTitle active.texts)
+    entityHeading (Translations.profileTitle active.texts)
         (viewRemote config.retry
             active.texts
             model.publicProfile
@@ -300,10 +323,16 @@ pageSettings config model active =
                         , input [ A.id "profile-name", A.type_ "text", A.attribute "autocomplete" "name", A.value model.profileForm.displayName, Events.onInput config.profileDisplayNameChanged ]
                             []
                         ]
-                    , div []
-                        [ label [ A.for "profile-bio" ] [ text (Translations.biography active.texts) ]
-                        , textarea [ A.id "profile-bio", A.dir "auto", A.value model.profileForm.biography, Events.onInput config.profileBiographyChanged ] []
-                        ]
+                    , AuthoringView.view
+                        { id = "profile-bio"
+                        , label = Translations.biography active.texts
+                        , helpId = "profile-bio-help"
+                        , helpText = Translations.biographyHelp active.texts
+                        , required = False
+                        , toMsg = config.profileAuthoring
+                        }
+                        active
+                        model.profileForm.authoring
                     , div []
                         [ label [ A.for "profile-avatar" ] [ text (Translations.avatar active.texts) ]
                         , if String.isEmpty model.profileForm.avatarUrl then

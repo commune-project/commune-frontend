@@ -46,6 +46,8 @@ function fixtures() {
     conflictOnce: false,
     loginStatus: 200,
     mediaStatus: 201,
+    mentionStatus: 200,
+    voteDelay: 0,
     unreadCount: 2
   };
 }
@@ -114,6 +116,15 @@ async function mockApi(page, state, { authenticated = false, identity: responseI
     }
     if (path === '/api/v1/site/vote-settings' && method === 'GET') {
       return json(route, 200, { upvotes_enabled: true, downvotes_enabled: true });
+    }
+    if (path === '/api/v1/mentions/candidates' && method === 'GET') {
+      if (state.mentionStatus !== 200) return json(route, state.mentionStatus, { error: 'unavailable' });
+      const query = (url.searchParams.get('q') || '').toLowerCase();
+      const items = [
+        { actor_uri: 'https://forum.test/users/bob', acct: 'bob@forum.test', display_name: 'Bob', avatar: '' },
+        { actor_uri: 'https://remote.test/users/carol', acct: 'carol@remote.test', display_name: 'Carol', avatar: '' }
+      ].filter(item => item.acct.toLowerCase().includes(query) || item.display_name.toLowerCase().includes(query));
+      return json(route, 200, { items });
     }
     if (path === '/api/v1/admin/vote-settings' && method === 'PUT') {
       return json(route, 200, { upvotes_enabled: body.upvotes_enabled, downvotes_enabled: body.downvotes_enabled });
@@ -235,6 +246,7 @@ async function mockApi(page, state, { authenticated = false, identity: responseI
       return route.fulfill({ status: 204 });
     }
     if (path.startsWith('/api/v1/posts/') && path.endsWith('/vote')) {
+      if (state.voteDelay) await new Promise(resolve => setTimeout(resolve, state.voteDelay));
       const id = path.split('/')[4];
       const post = state.posts[id];
       if (post) {
@@ -540,16 +552,16 @@ test('preserves an edit draft when the server reports a conflict', async ({ page
   await expect(page.getByLabel('Topic title')).toHaveValue('Server version');
 });
 
-test('likes, deletes with accessible confirmation, and updates profile', async ({ page }) => {
+test('upvotes, deletes with accessible confirmation, and updates profile', async ({ page }) => {
   const state = fixtures();
   await mockApi(page, state, { authenticated: true });
   await open(page, '/posts/p1');
   const topicCard = page.getByRole('article', { name: 'Hello world' });
-  await expect(topicCard.getByRole('button', { name: /^Like/ })).toHaveAttribute('aria-pressed', 'false');
-  await topicCard.getByRole('button', { name: /^Like/ }).click();
-  const unlike = topicCard.getByRole('button', { name: /^Unlike/ });
-  await expect(unlike).toBeVisible();
-  await expect(unlike).toHaveAttribute('aria-pressed', 'true');
+  await expect(topicCard.getByRole('button', { name: /^Upvote/ })).toHaveAttribute('aria-pressed', 'false');
+  await topicCard.getByRole('button', { name: /^Upvote/ }).click();
+  const clearVote = topicCard.getByRole('button', { name: /^Clear vote/ });
+  await expect(clearVote).toBeVisible();
+  await expect(clearVote).toHaveAttribute('aria-pressed', 'true');
 
   await page.getByRole('button', { name: 'Delete post' }).click();
   await expect(page.getByRole('dialog', { name: 'Delete this post?' })).toBeVisible();
@@ -573,6 +585,10 @@ test('votes, saves, hides and reports posts through the documented endpoints', a
   await open(page, '/posts/p1');
 
   const topicCard = page.getByRole('article', { name: 'Hello world' });
+  await topicCard.getByRole('button', { name: /^Upvote/ }).click();
+  await expect.poll(() => state.calls.some(call => call.path === '/api/v1/posts/p1/vote' && call.body.score === 1)).toBe(true);
+  await topicCard.getByRole('button', { name: /^Clear vote/ }).click();
+  await expect.poll(() => state.calls.some(call => call.path === '/api/v1/posts/p1/vote' && call.body.score === 0)).toBe(true);
   await topicCard.getByRole('button', { name: /^Downvote/ }).click();
   await expect.poll(() => state.calls.some(call => call.path === '/api/v1/posts/p1/vote' && call.body.score === -1)).toBe(true);
   await expect(topicCard.getByRole('button', { name: /^Clear vote/ })).toHaveAttribute('aria-pressed', 'true');
@@ -729,28 +745,30 @@ test('post action icons stay inside the card with localized tooltips and focus o
     }
   }
 
-  const [iconBox, countBox] = await actions.nth(0).evaluate(node => {
-    const icon = node.querySelector('svg').getBoundingClientRect();
-    const count = node.querySelector('.action-count').getBoundingClientRect();
-    return [{ right: icon.right, top: icon.top }, { left: count.left, top: count.top }];
+  const voteBoxes = await card.locator('.vote-control').evaluate(node => {
+    const score = node.querySelector('.vote-score').getBoundingClientRect();
+    const buttons = [...node.querySelectorAll('.vote-button')].map(button => button.getBoundingClientRect());
+    return { score, buttons };
   });
-  expect(countBox.left).toBeGreaterThanOrEqual(iconBox.right);
-  expect(Math.abs(countBox.top - iconBox.top)).toBeLessThanOrEqual(4);
+  expect(voteBoxes.buttons.length).toBe(2);
+  expect(voteBoxes.score.left).toBeGreaterThanOrEqual(voteBoxes.buttons[0].right);
+  expect(voteBoxes.score.right).toBeLessThanOrEqual(voteBoxes.buttons[1].left);
+  expect(Math.abs(voteBoxes.score.top - voteBoxes.buttons[0].top)).toBeLessThanOrEqual(4);
 
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(0);
 
-  await expect(actions.nth(0)).toHaveAttribute('title', 'Like · 2 likes');
-  await expect(actions.nth(1)).toHaveAttribute('title', /Downvote/);
+  await expect(actions.nth(0)).toHaveAttribute('title', 'Upvote · Score 2');
+  await expect(actions.nth(1)).toHaveAttribute('title', 'Downvote · Score 2');
   await expect(actions.nth(2)).toHaveAttribute('title', 'Save post');
   await expect(actions.nth(3)).toHaveAttribute('title', 'Hide for me');
   await expect(actions.nth(4)).toHaveAttribute('title', 'Report post');
   await expect(actions.nth(5)).toHaveAttribute('title', 'Edit post');
   await expect(actions.nth(6)).toHaveAttribute('title', 'Delete post');
   await expect(actions.nth(7)).toHaveAttribute('title', '3 replies');
-  await expect(actions.nth(0).locator('.action-count')).toHaveText('2');
+  await expect(card.locator('.vote-score')).toHaveText('2');
   await expect(actions.nth(7).locator('.action-count')).toHaveText('3');
-  await expect(card.getByRole('button', { name: 'Like · 2 likes' })).toBeVisible();
+  await expect(card.getByRole('button', { name: 'Upvote · Score 2' })).toBeVisible();
   await expect(card.getByRole('button', { name: '3 replies' })).toBeVisible();
 
   await actions.nth(0).focus();
@@ -768,7 +786,7 @@ test('post action icons stay inside the card with localized tooltips and focus o
   expect(glyphs.every(glyph => glyph.transform === 'none')).toBe(true);
   await page.emulateMedia({ forcedColors: 'none' });
 
-  for (const [locale, label] of [['zh-cmn-Hans-CN', '赞 · 2 个赞'], ['zh-cmn-Hant-TW', '按讚 · 2 個讚']]) {
+  for (const [locale, label] of [['zh-cmn-Hans-CN', '赞成 · 得分 2'], ['zh-cmn-Hant-TW', '贊成 · 得分 2']]) {
     await page.addInitScript(value => localStorage.setItem('commune.locale', value), locale);
     await page.goto('/posts/p1');
     await expect(page.locator('#main-heading')).toBeVisible();
@@ -787,6 +805,153 @@ test('failed upload retains editor content and reports the failure', async ({ pa
   await expect(page.getByText('Upload failed. Your message is preserved.')).toBeVisible();
   await expect(page.getByLabel('Topic title')).toHaveValue('Stable draft');
   await expect(page.getByLabel('Message')).toHaveValue('Unsaved body');
+});
+
+test('authors Markdown with toolbar formatting and complete mention handles', async ({ page }) => {
+  const state = fixtures();
+  await mockApi(page, state, { authenticated: true });
+  await open(page, '/communities/c1/new');
+  const message = page.getByLabel('Message');
+
+  await message.fill('hello');
+  await message.evaluate(element => {
+    element.focus();
+    element.setSelectionRange(0, 5);
+    element.dispatchEvent(new Event('select', { bubbles: true }));
+  });
+  await page.getByRole('button', { name: 'Bold' }).click();
+  await expect(message).toHaveValue('**hello**');
+
+  await message.fill('Hello @bo');
+  await expect(page.getByRole('option', { name: /Bob/ })).toBeVisible();
+  await expect.poll(() => state.calls.some(call => call.path === '/api/v1/mentions/candidates' && call.search.includes('q=bo'))).toBe(true);
+  await message.evaluate(element => element.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true, isComposing: true })));
+  await expect(message).toHaveValue('Hello @bo');
+  await expect(page.locator('.mention-option')).toHaveCount(1);
+  await message.press('Enter');
+  await expect(message).toHaveValue('Hello @bob@forum.test ');
+  await expect(page.locator('.mention-option')).toHaveCount(0);
+
+  await page.setViewportSize({ width: 320, height: 800 });
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+  expect(overflow).toBe(false);
+});
+
+test('edits a profile biography with Markdown mention insertion', async ({ page }) => {
+  const state = fixtures();
+  await mockApi(page, state, { authenticated: true });
+  await open(page, '/settings/profile');
+  const biography = page.getByLabel(/Biography/);
+
+  await biography.fill('About @bo');
+  await expect(page.getByRole('option', { name: /Bob/ })).toBeVisible();
+  await biography.press('Enter');
+  await expect(biography).toHaveValue('About @bob@forum.test ');
+  await page.getByRole('button', { name: 'Save profile' }).click();
+  await expect.poll(() => state.calls.some(call => call.method === 'PATCH' && call.path === '/api/v1/profile' && call.body.biography === 'About @bob@forum.test ')).toBe(true);
+});
+
+test('inserts stored remote mention handles', async ({ page }) => {
+  const state = fixtures();
+  await mockApi(page, state, { authenticated: true });
+  await open(page, '/communities/c1/new');
+  const message = page.getByLabel('Message');
+  await message.fill('Hello @ca');
+  await expect(page.getByRole('option', { name: /Carol/ })).toBeVisible();
+  await message.press('Enter');
+  await expect(message).toHaveValue('Hello @carol@remote.test ');
+});
+
+test('empty mention results do not block publishing', async ({ page }) => {
+  const state = fixtures();
+  await mockApi(page, state, { authenticated: true });
+  await open(page, '/communities/c1/new');
+  const message = page.getByLabel('Message');
+  await page.getByLabel('Topic title').fill('No matching accounts');
+  await message.fill('Hello @zz');
+  await expect(page.locator('.mention-list .mention-status')).toContainText('No matching accounts');
+  await page.getByRole('button', { name: 'Publish topic' }).click();
+  await expect(page).toHaveURL(/\/posts\/p-new$/);
+});
+
+test('mention lookup failure is non-blocking', async ({ page }) => {
+  const state = fixtures();
+  state.mentionStatus = 503;
+  await mockApi(page, state, { authenticated: true });
+  await open(page, '/communities/c1/new');
+  const message = page.getByLabel('Message');
+
+  await page.getByLabel('Topic title').fill('Unavailable mentions');
+  await message.fill('Hello @bo');
+  await expect(page.locator('.mention-list .mention-status')).toContainText('Mention suggestions are unavailable');
+  await expect(message).toHaveValue('Hello @bo');
+  await page.getByRole('button', { name: 'Publish topic' }).click();
+  await expect(page).toHaveURL(/\/posts\/p-new$/);
+});
+
+test('keeps localized timestamps after refresh and locale switch', async ({ page }) => {
+  const state = fixtures();
+  await mockApi(page, state, { authenticated: true });
+  await open(page, '/posts/p1');
+  const stamp = page.locator('time[data-commune-time]').first();
+  await expect(stamp).not.toHaveText(/^2026-\d/);
+  const before = await stamp.textContent();
+  expect(before).not.toMatch(/ago/);
+
+  const card = page.getByRole('article', { name: 'Hello world' });
+  await card.getByRole('button', { name: /^Upvote/ }).click();
+  await expect(stamp).toHaveText(before);
+
+  await page.getByLabel('Language').selectOption('zh-cmn-Hans-CN');
+  await expect(stamp).toHaveText(/2026/);
+  await expect(stamp).not.toHaveText(/^2026-\d/);
+});
+
+test('compacts section headings and keeps entity headings distinct', async ({ page }) => {
+  const state = fixtures();
+  await mockApi(page, state, { authenticated: true });
+  await open(page, '/');
+  const sectionSize = await page.locator('#main-heading').evaluate(element => parseFloat(getComputedStyle(element).fontSize));
+  expect(sectionSize).toBeLessThanOrEqual(28);
+
+  await page.goto('/posts/p1');
+  const entitySize = await page.locator('#main-heading').evaluate(element => parseFloat(getComputedStyle(element).fontSize));
+  expect(entitySize).toBeGreaterThan(sectionSize);
+  expect(entitySize).toBeLessThanOrEqual(36);
+
+  await page.setViewportSize({ width: 320, height: 800 });
+  await page.goto('/');
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+  expect(overflow).toBe(false);
+});
+
+test('clears an existing vote when its direction is disabled', async ({ page }) => {
+  const state = fixtures();
+  state.posts.p1.permissions.can_downvote = false;
+  state.posts.p1.voted_by_me = -1;
+  state.posts.p1.downvotes = 1;
+  state.posts.p1.score = 1;
+  await mockApi(page, state, { authenticated: true });
+  await open(page, '/posts/p1');
+  const card = page.getByRole('article', { name: 'Hello world' });
+  await card.getByRole('button', { name: /^Clear vote/ }).click();
+  await expect.poll(() => state.calls.some(call => call.path === '/api/v1/posts/p1/vote' && call.body.score === 0)).toBe(true);
+  await expect(card.getByRole('button', { name: /^Downvote/ })).toHaveCount(0);
+});
+
+test('disables both vote directions while a vote is in flight', async ({ page }) => {
+  const state = fixtures();
+  state.voteDelay = 500;
+  await mockApi(page, state, { authenticated: true });
+  await open(page, '/posts/p1');
+  const card = page.getByRole('article', { name: 'Hello world' });
+  const upvote = card.getByRole('button', { name: /^Upvote/ });
+  const downvote = card.getByRole('button', { name: /^Downvote/ });
+  await upvote.click();
+  await expect(upvote).toBeDisabled();
+  await expect(downvote).toBeDisabled();
+  await expect.poll(() => state.calls.some(call => call.path === '/api/v1/posts/p1/vote')).toBe(true);
+  await expect(card.getByRole('button', { name: /^Clear vote/ })).toBeVisible();
 });
 
 test('reads notifications and performs community management', async ({ page }) => {
@@ -928,6 +1093,16 @@ test('community creation, search and management pages have no axe violations', a
       expect(results.violations, width + 'px ' + path + ': ' + JSON.stringify(results.violations, null, 2)).toEqual([]);
     }
   }
+});
+
+test('authoring toolbar and open mention list have no axe violations', async ({ page }) => {
+  const state = fixtures();
+  await mockApi(page, state, { authenticated: true });
+  await open(page, '/communities/c1/new');
+  await page.getByLabel('Message').fill('Hello @bo');
+  await expect(page.getByRole('option', { name: /Bob/ })).toBeVisible();
+  const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
+  expect(results.violations, JSON.stringify(results.violations, null, 2)).toEqual([]);
 });
 
 test('mobile navigation dialog contains focus and restores it', async ({ page }) => {

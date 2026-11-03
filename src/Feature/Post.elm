@@ -15,7 +15,7 @@ import Remote exposing (Remote(..))
 import Route
 import Set exposing (Set)
 import Ui.Feedback exposing (viewRemote)
-import Ui.Layout exposing (pageHeading)
+import Ui.Layout exposing (entityHeading)
 import Ui.Pagination exposing (emptyWithPagination, viewPagination)
 import Url exposing (Url)
 
@@ -402,7 +402,7 @@ type alias ViewModel =
 
 pagePost : Config msg -> ViewModel -> Active -> String -> Html msg
 pagePost config model active postId =
-    pageHeading
+    entityHeading
         (case model.post of
             Ready post ->
                 if String.isEmpty post.title then

@@ -76,7 +76,7 @@ profileViewConfig : Model -> Profile.Config Msg
 profileViewConfig model =
     { retry = RetryPage
     , profileDisplayNameChanged = ProfileMessage << Profile.ProfileDisplayNameChanged
-    , profileBiographyChanged = ProfileMessage << Profile.ProfileBiographyChanged
+    , profileAuthoring = ProfileMessage << Profile.ProfileAuthoring
     , profileClearAvatar = ProfileMessage Profile.ProfileClearAvatar
     , profileSave = ProfileMessage Profile.ProfileSave
     , avatarFileSelected = ProfileMessage << Profile.AvatarFileSelected

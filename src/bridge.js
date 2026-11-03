@@ -29,17 +29,13 @@ export function pluralCategory(locale, value) {
   catch { return 'other'; }
 }
 
-export function formatTime(locale, source, now = Date.now()) {
+export function formatTime(locale, source) {
   const date = new Date(source);
-  if (!Number.isFinite(date.getTime())) return { absolute: source, relative: source };
+  if (!Number.isFinite(date.getTime())) return source;
   try {
     const tag = formattingLocale(locale);
-    const absolute = new Intl.DateTimeFormat(tag, { dateStyle: 'medium', timeStyle: 'short' }).format(date);
-    const seconds = (date.getTime() - now) / 1000;
-    const unit = Math.abs(seconds) < 60 ? 'second' : Math.abs(seconds) < 3600 ? 'minute' : Math.abs(seconds) < 86400 ? 'hour' : 'day';
-    const divisor = { second: 1, minute: 60, hour: 3600, day: 86400 }[unit];
-    return { absolute, relative: new Intl.RelativeTimeFormat(tag, { numeric: 'auto' }).format(Math.round(seconds / divisor), unit) };
-  } catch { return { absolute: date.toISOString(), relative: date.toISOString() }; }
+    return new Intl.DateTimeFormat(tag, { dateStyle: 'medium', timeStyle: 'short' }).format(date);
+  } catch { return source; }
 }
 
 export function readPreference(storage) {

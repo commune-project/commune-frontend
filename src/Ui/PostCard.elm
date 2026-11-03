@@ -7,17 +7,18 @@ import Html.Attributes as A
 import Html.Events as Events
 import List
 import Route
-import Ui.Formatting exposing (Formatting, boolText, formattedCount, formattedDate, likesLabel, repliesLabel)
+import Ui.Formatting exposing (Formatting, boolText, formattedCount, repliesLabel)
 import Ui.Icon
 import Ui.Rich
+import Ui.VoteControl
 
 
 type alias Config msg =
     { formatted : Maybe Formatting
     , isBusy : String -> Bool
     , isExpanded : String -> Bool
+    , onVote : String -> Int -> msg
     , onLike : String -> Bool -> msg
-    , onDownvote : String -> Int -> msg
     , onSave : String -> Bool -> msg
     , onHideForMe : String -> Bool -> msg
     , onReport : String -> String -> msg
@@ -44,28 +45,8 @@ postCard config texts post =
             else
                 post.authorActor
 
-        likeName =
-            (if post.liked then
-                Translations.unlikeAction texts
-
-             else
-                Translations.likeAction texts
-            )
-                ++ " · "
-                ++ likesLabel config.formatted texts post.likes
-
         replyName =
             repliesLabel config.formatted texts post.replies
-
-        downvoteName =
-            (if post.votedByMe == -1 then
-                Translations.clearVote texts
-
-             else
-                Translations.downvote texts
-            )
-                ++ " · "
-                ++ Translations.downvote texts
 
         saveName =
             if post.saved then
@@ -96,41 +77,25 @@ postCard config texts post =
         , p [ A.class "metadata" ]
             [ bdi [] [ text (Translations.authorLabel authorText texts) ]
             , text " · "
-            , time [ A.datetime post.date, A.attribute "data-commune-time" "" ] [ text (formattedDate config.formatted post.date) ]
+            , time [ A.datetime post.date, A.attribute "data-commune-time" "" ] [ text post.date ]
             ]
         , Ui.Rich.view post.html
         , viewAttachments texts post.attachments
         , div [ A.class "post-actions" ]
-            [ button
-                [ A.class "icon-button"
-                , A.attribute "aria-label" likeName
-                , A.attribute "title" likeName
-                , A.attribute "aria-pressed" (boolText post.liked)
-                , A.disabled (not post.canLike || config.isBusy post.id)
-                , Events.onClick (config.onLike post.id post.liked)
-                ]
-                [ Ui.Icon.view (Ui.Icon.Like post.liked)
-                , span [ A.class "action-count" ] [ text (formattedCount config.formatted post.likes) ]
-                ]
-            , button
-                [ A.class "icon-button"
-                , A.attribute "aria-label" downvoteName
-                , A.attribute "title" downvoteName
-                , A.attribute "aria-pressed" (boolText (post.votedByMe == -1))
-                , A.disabled (not (post.canDownvote || post.votedByMe == -1) || config.isBusy post.id)
-                , Events.onClick
-                    (config.onDownvote post.id
-                        (if post.votedByMe == -1 then
-                            0
-
-                         else
-                            -1
-                        )
-                    )
-                ]
-                [ Ui.Icon.view (Ui.Icon.ThumbDown (post.votedByMe == -1))
-                , span [ A.class "action-count" ] [ text (formattedCount config.formatted post.score) ]
-                ]
+            [ Ui.VoteControl.view
+                { formatted = config.formatted
+                , score = post.score
+                , upvotes = post.upvotes
+                , downvotes = post.downvotes
+                , votedByMe = post.votedByMe
+                , canUpvote = post.canUpvote
+                , canDownvote = post.canDownvote
+                , canLike = post.canLike
+                , busy = config.isBusy post.id
+                , onVote = config.onVote post.id
+                , onLike = config.onLike post.id
+                }
+                texts
             , if post.canSave || post.saved then
                 button
                     [ A.class "icon-button"

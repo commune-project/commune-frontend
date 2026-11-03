@@ -6,7 +6,7 @@ import App.Feedback exposing (Flash(..))
 import App.Session exposing (AuthState(..))
 import Domain
 import Generated.I18n as Translations
-import Html exposing (Html, button, div, form, h2, input, label, li, option, p, section, select, span, text, ul)
+import Html exposing (Html, button, div, form, h2, input, label, li, option, p, section, select, span, text, time, ul)
 import Html.Attributes as A
 import Html.Events as Events
 import Json.Decode as Decode
@@ -14,7 +14,7 @@ import Json.Encode as Encode
 import List
 import Remote exposing (Remote(..))
 import Ui.Feedback exposing (loginRequired, viewFormProblem, viewRemote)
-import Ui.Formatting exposing (formattedDate)
+import Ui.Formatting
 import Ui.Layout exposing (pageHeading)
 
 
@@ -247,7 +247,7 @@ pageAccountBlocks config model active =
                                             li []
                                                 [ span [ A.class "chips" ]
                                                     [ span [ A.class "chip" ] [ text (blockKindLabel active.texts block.kind) ]
-                                                    , span [ A.class "chip" ] [ text (formattedDate config.formatted block.createdAt) ]
+                                                    , time [ A.class "chip", A.datetime block.createdAt, A.attribute "data-commune-time" "" ] [ text block.createdAt ]
                                                     ]
                                                 , p [ A.dir "auto" ] [ text block.target ]
                                                 , button
